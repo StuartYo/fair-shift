@@ -21,7 +21,9 @@ import type { CheckInput, RuleKey } from "../lib/wage/types";
 export interface EvalCase {
   id: string;
   title: string;
-  group?: "main" | "messy" | "heldout";
+  /** Sample menu title in Traditional Chinese. */
+  titleZh?: string;
+  group?: "main" | "messy" | "heldout" | "realstyle";
   input: CheckInput;
   expected: {
     shifts: number;
@@ -34,6 +36,11 @@ export interface EvalCase {
     holidayDates?: string[];
     /** Rules that must appear on the pay lines. */
     ruleKeys?: RuleKey[];
+    /**
+     * The right answer is to ask instead of showing an amount (for example a
+     * monthly salary with no hourly rate). The numeric fields are then not scored.
+     */
+    needsInput?: "hourly_rate";
   };
   why: string;
 }

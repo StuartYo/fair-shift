@@ -131,6 +131,13 @@ export interface CheckInput {
   dayOffWeekday?: number | null;
   /** First day of the workweek (0=Sun). Default Monday. Used for weekly overtime in both places. */
   workweekStart?: number;
+  /** Hourly rate typed in the form, used when the payslip does not state one. */
+  hourlyRate?: number;
+  /**
+   * US-NY tipped jobs: does the gross pay on the payslip include tips?
+   * undefined = not asked (API callers, eval cases); "unsure" = the worker does not know.
+   */
+  nyTipsInGross?: "yes" | "no" | "unsure";
 }
 
 export interface FairShiftReport {

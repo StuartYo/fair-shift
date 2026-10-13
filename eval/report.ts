@@ -6,7 +6,7 @@
 export interface EvalRow {
   case: string;
   title: string;
-  group?: "main" | "messy" | "heldout";
+  group?: "main" | "messy" | "heldout" | "realstyle";
   currency: "TWD" | "USD";
   truth: number;
   truthShortfall: number;
