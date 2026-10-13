@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+.env
+.env.*
+!.env.example
+# Domain-specific work parked while the topic is decided. Not committed.
+_parked/
