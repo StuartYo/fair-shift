@@ -92,6 +92,166 @@ h3 {
   padding: 8px 12px;
   border-radius: 10px;
   font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.banner svg {
+  flex: none;
+  margin-top: 2px;
+}
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+}
+.go.big {
+  padding: 12px 22px;
+  font-size: 16px;
+  border-radius: 12px;
+}
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: middle;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.small {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.verdict {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--good);
+  border-radius: 16px;
+  padding: 18px 18px 14px;
+  box-shadow: var(--shadow);
+  scroll-margin-top: 12px;
+}
+.verdict.bad {
+  border-top-color: var(--bad);
+}
+.kicker {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.vhead {
+  margin: 6px 0 4px;
+  font-size: clamp(28px, 6vw, 42px);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.verdict.bad .vhead {
+  color: var(--bad);
+}
+.verdict.good .vhead {
+  color: var(--good);
+}
+.vsub {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+.vfind {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+}
+.vfind li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.vfind svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--bad);
+}
+.vrules-h {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0 8px;
+}
+.vrules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 10px;
+}
+.mini {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg);
+  min-width: 0;
+}
+.mini header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.mini h3 {
+  font-size: 13px;
+}
+.mini .val {
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mini blockquote {
+  background: var(--panel);
+  font-size: 12.5px;
+}
+.src {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  justify-content: space-between;
+}
+.src a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+.more {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 13.5px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
 }
 .grid {
   display: grid;
@@ -268,6 +428,7 @@ textarea {
 }
 .results {
   margin-top: 24px;
+  scroll-margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -382,7 +543,7 @@ tr.prem td {
 }
 .rules {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 12px;
 }
 @media (max-width: 400px) {

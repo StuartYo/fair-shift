@@ -10,6 +10,8 @@ export interface FixtureDoc {
   url: string;
   title: string;
   content: string;
+  /** Date this page was recorded, if different from the set. */
+  recordedOn?: string;
 }
 
 export interface FixtureSet {
@@ -76,7 +78,7 @@ export class FixtureSearchProvider implements SearchProvider {
     if (!isAllowedUrl(url, this.domains)) throw new Error("URL is not on the official domain allowlist");
     const d = this.set.docs.find((x) => x.url === url);
     if (!d) return { doc: null, credits: 0 };
-    const doc: RetrievedDoc = { url: d.url, title: d.title, content: d.content, via: "fixture_extract", retrievedAt: this.set.recordedOn };
+    const doc: RetrievedDoc = { url: d.url, title: d.title, content: d.content, via: "fixture_extract", retrievedAt: d.recordedOn ?? this.set.recordedOn };
     return { doc, credits: 0 };
   }
 }

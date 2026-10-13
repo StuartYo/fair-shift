@@ -1,4 +1,4 @@
-import type { CheckInput } from "../lib/wage/types";
+import type { CheckInput, RuleKey } from "../lib/wage/types";
 
 // SYNTHETIC test data. Every schedule and payslip below is invented; no real
 // person or employer. Expected values were computed by hand from the official
@@ -17,6 +17,8 @@ export interface EvalCase {
     minWageUsed: number;
     minWagePending?: boolean;
     holidayDates?: string[];
+    /** Rules that must appear on the pay lines. */
+    ruleKeys?: RuleKey[];
   };
   why: string;
 }
@@ -78,6 +80,50 @@ export const EVAL_CASES: EvalCase[] = [
     why: "MOL press release 2026-09-24: 205 from 2027-01-01, pending Executive Yuan approval. 10 x 205 = 2050.",
   },
   {
+    id: "tw-weekly-40",
+    title: "Part-timer, six 7-hour days in one week, hours over 40 paid as straight time",
+    input: {
+      jurisdiction: "TW",
+      scheduleText:
+        "10/19(一) 10:00-17:30 休息30分\n10/20(二) 10:00-17:30 休息30分\n10/21(三) 10:00-17:30 休息30分\n10/22(四) 10:00-17:30 休息30分\n10/23(五) 10:00-17:30 休息30分\n10/24(六) 10:00-17:30 休息30分",
+      payslipText: "薪資單 2026/10/19 - 2026/10/25\n時薪 200\n總工時 42\n實發 8,400",
+    },
+    expected: { shifts: 6, workedHours: 42, expectedTotal: 8533, paidTotal: 8400, shortfall: 133, minWageUsed: 196, ruleKeys: ["tw.weekly_hours", "tw.ot_first2"] },
+    why: "LSA Enforcement Rules Art. 20-1: hours over 40 a week are overtime. Mon-Fri 35 h; Saturday 5 h reach 40, 2 h over at 4/3 (Art. 24). 40 x 200 + 2 x 200 x 4/3 = 8000 + 533.33 = 8533.33, rounded 8533.",
+  },
+  {
+    id: "tw-mid-autumn-2026",
+    title: "Worked Mid-Autumn Festival 2026 (lunar holiday), paid straight time",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "9/24(四) 17:00-22:00\n9/25(五) 中秋 17:00-22:00",
+      payslipText: "薪資單 2026/09/16 - 2026/09/30\n時薪：196\n總工時：10 小時\n實發金額：1,960",
+    },
+    expected: { shifts: 2, workedHours: 10, expectedTotal: 2940, paidTotal: 1960, shortfall: 980, minWageUsed: 196, holidayDates: ["2026-09-25"], ruleKeys: ["tw.holiday"] },
+    why: "Mid-Autumn is lunar 8/15 = 2026-09-25 (DGPA 115 calendar), a day off under 紀念日及節日實施條例 Art. 6. 5 x 196 + 5 x 196 x 2 (Art. 39) = 980 + 1960 = 2940.",
+  },
+  {
+    id: "tw-lunar-new-year-2027",
+    title: "Lunar New Year 2027: two holiday shifts and one normal day, all paid straight time",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "2027/2/4(四) 17:00-22:00\n2027/2/5(五) 10:00-15:00\n2027/2/10(三) 17:00-22:00",
+      payslipText: "薪資單 2027/02/01 - 2027/02/15\n時薪：205\n總工時：15 小時\n實發金額：3,075",
+    },
+    expected: {
+      shifts: 3,
+      workedHours: 15,
+      expectedTotal: 5125,
+      paidTotal: 3075,
+      shortfall: 2050,
+      minWageUsed: 205,
+      minWagePending: true,
+      holidayDates: ["2027-02-04", "2027-02-05"],
+      ruleKeys: ["tw.holiday"],
+    },
+    why: "DGPA 116 calendar: New Year's Eve is 2027-02-05, so the 5-day holiday (Art. 6: from the day before New Year's Eve to lunar 1/3) runs 02-04 to 02-08. 02-10 is a government substitute day, not a statutory holiday. 5 x 205 x 2 + 5 x 205 x 2 + 5 x 205 = 5125.",
+  },
+  {
     id: "ny-weekly-overtime",
     title: "NYC barista, 42.5 hours in one week, no overtime paid",
     input: {
@@ -100,6 +146,33 @@ export const EVAL_CASES: EvalCase[] = [
     },
     expected: { shifts: 3, workedHours: 18, expectedTotal: 288, paidTotal: 279, shortfall: 9, minWageUsed: 16 },
     why: "2026 rest-of-state minimum is $16.00 (P700). 18 x 16 = 288.",
+  },
+  {
+    id: "ny-tipped-overtime",
+    title: "NYC food server, 42 hours, overtime paid at 1.5x the cash wage instead of 1.5x the full rate",
+    input: {
+      jurisdiction: "US-NY",
+      nyRegion: "nyc",
+      nyJob: "food_service",
+      scheduleText:
+        "Mon Oct 19 10am-7pm (30 min break)\nTue Oct 20 10am-7pm (30 min break)\nWed Oct 21 10am-7pm (30 min break)\nThu Oct 22 10am-7pm (30 min break)\nFri Oct 23 10am-6:30pm (30 min break)",
+      payslipText: "Pay period 2026-10-19 to 2026-10-25 (sample)\nHourly rate: $11.35 (cash wage, tip credit taken)\nHours paid: 42\nGross wages: $476.70\nTips reported: $610.00",
+    },
+    expected: { shifts: 5, workedHours: 42, expectedTotal: 493.7, paidTotal: 476.7, shortfall: 17, minWageUsed: 17, ruleKeys: ["ny.tip_credit", "ny.ot_tipped"] },
+    why: "12 NYCRR 146-1.3: NYC food service tip credit $5.65, cash wage $11.35 (2026). 146-1.4: overtime = 1.5 x $17.00 - $5.65 = $19.85. 40 x 11.35 + 2 x 19.85 = 454.00 + 39.70 = 493.70. Tips $610 + cash $476.70 cover 42 x $17.00 = $714.",
+  },
+  {
+    id: "ny-spread-of-hours",
+    title: "NYC line cook, split shift spanning 12 hours, no spread-of-hours pay",
+    input: {
+      jurisdiction: "US-NY",
+      nyRegion: "nyc",
+      nyJob: "hospitality",
+      scheduleText: "Thu Oct 22 10:00-16:00\nSat Oct 24 10:00-14:00\nSat Oct 24 17:00-22:00",
+      payslipText: "Pay period 2026-10-19 to 2026-10-25 (sample)\nHourly rate: $17.50\nHours paid: 15\nGross pay: $262.50",
+    },
+    expected: { shifts: 3, workedHours: 15, expectedTotal: 279.5, paidTotal: 262.5, shortfall: 17, minWageUsed: 17, ruleKeys: ["ny.spread_hosp"] },
+    why: "12 NYCRR 146-1.6: restaurant workday 10:00 to 22:00 is a 12-hour spread (over 10), so one extra hour at the $17.00 minimum wage, whatever the pay rate. 15 x 17.50 + 17.00 = 279.50.",
   },
   {
     id: "ny-clean",

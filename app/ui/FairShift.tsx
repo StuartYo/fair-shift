@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  ArrowDown,
   CheckCircle2,
   Copy,
   Cpu,
@@ -9,19 +10,23 @@ import {
   ExternalLink,
   FileText,
   Info,
+  Landmark,
   Loader2,
   Lock,
+  Play,
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { EVAL_CASES } from "@/eval/cases";
-import { NY_REGION_LABEL, specByKey } from "@/lib/wage/catalog";
-import { fmtMoney, fmtMultiplier, ruleValueText, toMarkdown } from "@/lib/wage/export";
-import type { FairShiftReport, Jurisdiction, NyRegion } from "@/lib/wage/types";
-import type { TraceStep } from "@/lib/types";
+import { useMemo, useRef, useState } from "react";
+import { EVAL_CASES, type EvalCase } from "@/eval/cases";
+import { NY_JOB_LABEL, NY_REGION_LABEL, specByKey } from "@/lib/wage/catalog";
+import { fmtLineRate, fmtMoney, holidayLabel, ruleValueText, toMarkdown, whyLines } from "@/lib/wage/export";
+import type { CheckInput, FairShiftReport, HolidayRecord, Jurisdiction, NyJob, NyRegion, RuleRecord } from "@/lib/wage/types";
+import type { Citation, TraceStep } from "@/lib/types";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** The case the "Try a sample payslip" button runs: worked National Day, paid straight time. */
+const HERO_SAMPLE = "tw-holiday-unpaid";
 
 function StepIcon({ kind }: { kind: TraceStep["kind"] }) {
   const p = { size: 15, "aria-hidden": true } as const;
@@ -40,9 +45,63 @@ function download(name: string, body: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function shorten(s: string, n = 170): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 3).trimEnd()}...` : t;
+}
+
+function Via({ c }: { c: Citation }) {
+  return <span className="via">{c.via.startsWith("fixture") ? "Saved copy (demo mode)" : "Retrieved live with Tavily"}</span>;
+}
+
+/** The rules that changed the number: premiums, minimum wage top-ups, holidays. */
+function keyRules(r: FairShiftReport): { rules: RuleRecord[]; holidays: HolidayRecord[] } {
+  const c = r.computation;
+  const keys = new Set<string>();
+  for (const l of c.lines) {
+    if (l.multiplier > 1 || l.deduction || l.label.startsWith("Spread")) l.ruleKeys.filter((k) => !k.includes("min_wage")).forEach((k) => keys.add(k));
+  }
+  const lastDate = r.shifts.map((s) => s.date).sort().at(-1) ?? "";
+  const mw = r.rules
+    .filter((x) => x.key.endsWith("min_wage_hourly") && (!x.region || x.region === r.input.nyRegion) && (x.effectiveFrom ?? "") <= lastDate)
+    .sort((a, b) => (b.effectiveFrom ?? "").localeCompare(a.effectiveFrom ?? ""))[0];
+  const usesMinWage = c.components.minWageTopUp > 0 || c.problems.some((p) => p.kind === "below_min_wage");
+  const rules = r.rules.filter((x) => keys.has(x.key) && x.key !== "ny.tip_credit");
+  const tip = keys.has("ny.tip_credit")
+    ? r.rules
+        .filter((x) => x.key === "ny.tip_credit" && x.region === r.input.nyRegion && (x.effectiveFrom ?? "") <= lastDate)
+        .sort((a, b) => (b.effectiveFrom ?? "").localeCompare(a.effectiveFrom ?? ""))[0]
+    : undefined;
+  const holidays = r.holidays.filter((h) => r.shifts.some((s) => s.dayType === "holiday" && (h.date ? h.date === s.date : h.monthDay === s.date.slice(5))));
+  return { rules: [...(usesMinWage && mw ? [mw] : []), ...(tip ? [tip] : []), ...rules].slice(0, 4), holidays: holidays.slice(0, 2) };
+}
+
+function MiniRule({ title, value, cit }: { title: string; value: string; cit?: Citation }) {
+  return (
+    <article className="mini">
+      <header>
+        <h3>{title}</h3>
+        <span className="val">{value}</span>
+      </header>
+      {cit && (
+        <>
+          <blockquote lang={/[㐀-鿿]/.test(cit.quote) ? "zh-Hant" : "en"}>{shorten(cit.quote)}</blockquote>
+          <p className="src">
+            <a href={cit.url} target="_blank" rel="noreferrer">
+              {shorten(cit.title, 70)} <ExternalLink size={12} aria-hidden />
+            </a>
+            <Via c={cit} />
+          </p>
+        </>
+      )}
+    </article>
+  );
+}
+
 export default function FairShift({ initialMode, initialNote }: { initialMode: "live" | "mock"; initialNote: string }) {
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>("TW");
   const [region, setRegion] = useState<NyRegion>("nyc");
+  const [job, setJob] = useState<NyJob>("general");
   const [schedule, setSchedule] = useState(EVAL_CASES[0].input.scheduleText);
   const [payslip, setPayslip] = useState(EVAL_CASES[0].input.payslipText);
   const [restDay, setRestDay] = useState<string>("");
@@ -50,40 +109,60 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
   const [busy, setBusy] = useState(false);
   const [steps, setSteps] = useState<TraceStep[]>([]);
   const [report, setReport] = useState<FairShiftReport | null>(null);
+  const [reportTitle, setReportTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState({ mode: initialMode, note: initialNote });
   const [copied, setCopied] = useState(false);
+  const verdictRef = useRef<HTMLElement>(null);
 
   const samples = useMemo(() => EVAL_CASES.filter((c) => c.input.jurisdiction === jurisdiction), [jurisdiction]);
 
-  function loadSample(id: string) {
-    const c = EVAL_CASES.find((x) => x.id === id);
-    if (!c) return;
+  function fill(c: EvalCase) {
     setJurisdiction(c.input.jurisdiction);
     if (c.input.nyRegion) setRegion(c.input.nyRegion);
+    setJob(c.input.nyJob ?? "general");
     setSchedule(c.input.scheduleText);
     setPayslip(c.input.payslipText);
+    setRestDay("");
+    setDayOff("");
     setReport(null);
     setSteps([]);
   }
 
-  async function run() {
+  function loadSample(id: string) {
+    const c = EVAL_CASES.find((x) => x.id === id);
+    if (c) fill(c);
+  }
+
+  async function trySample() {
+    const c = EVAL_CASES.find((x) => x.id === HERO_SAMPLE)!;
+    fill(c);
+    await run({ ...c.input }, `Sample: ${c.title}`);
+  }
+
+  function currentInput(): CheckInput {
+    return {
+      jurisdiction,
+      nyRegion: jurisdiction === "US-NY" ? region : undefined,
+      nyJob: jurisdiction === "US-NY" ? job : undefined,
+      scheduleText: schedule,
+      payslipText: payslip,
+      restDayWeekday: restDay === "" ? undefined : Number(restDay),
+      dayOffWeekday: dayOff === "" ? undefined : Number(dayOff),
+    };
+  }
+
+  async function run(input: CheckInput = currentInput(), title: string | null = null) {
     setBusy(true);
     setError(null);
     setReport(null);
+    setReportTitle(title);
     setSteps([]);
     try {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jurisdiction,
-          nyRegion: jurisdiction === "US-NY" ? region : undefined,
-          scheduleText: schedule,
-          payslipText: payslip,
-          restDayWeekday: restDay === "" ? undefined : Number(restDay),
-          dayOffWeekday: dayOff === "" ? undefined : Number(dayOff),
-        }),
+        body: JSON.stringify(input),
       });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -104,7 +183,10 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
           const ev = JSON.parse(line);
           if (ev.type === "mode") setMode({ mode: ev.mode, note: ev.note });
           if (ev.type === "step") setSteps((s) => [...s, ev.step]);
-          if (ev.type === "report") setReport(ev.report);
+          if (ev.type === "report") {
+            setReport(ev.report);
+            requestAnimationFrame(() => verdictRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          }
           if (ev.type === "error") setError(ev.message);
         }
       }
@@ -118,22 +200,95 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
   const c = report?.computation;
   const cur = c?.currency ?? (jurisdiction === "TW" ? "TWD" : "USD");
   const gap = c?.shortfall ?? 0;
+  const demo = mode.mode === "mock";
+  const key = report ? keyRules(report) : null;
+  const why = report ? whyLines(report) : [];
 
   return (
     <div className="shell">
       <header className="top">
         <div>
+          <p className="eyebrow">Hourly pay checker for Taiwan and New York</p>
           <h1>Fair Shift</h1>
-          <p className="lede">Check an hourly payslip against the official wage rules, retrieved live from government sites. The math is done by code, not by a model.</p>
+          <p className="lede">
+            Paste your shifts and your payslip. Fair Shift reads the current wage rules from government websites, does the math in code, and shows the exact law text behind every number.
+          </p>
+          <div className="cta">
+            <button className="go big" onClick={trySample} disabled={busy}>
+              {busy ? <Loader2 className="spin" size={18} aria-hidden /> : <Play size={18} aria-hidden />}
+              Try a sample payslip
+            </button>
+            <span className="muted">Synthetic store clerk in Taipei who worked National Day.</span>
+          </div>
         </div>
         <span className={`badge ${mode.mode}`} title={mode.note}>
           {mode.mode === "live" ? "Live" : "Demo mode"}
         </span>
       </header>
-      {mode.mode === "mock" && <p className="banner">{mode.note}</p>}
+      {demo && (
+        <p className="banner">
+          <Info size={15} aria-hidden /> {mode.note}
+        </p>
+      )}
+
+      {report && c && key && (
+        <section className={`verdict ${gap > 0 ? "bad" : "good"}`} ref={verdictRef} aria-live="polite">
+          <p className="kicker">
+            {reportTitle ?? "Your check"}
+            {demo && <span className="tag">Demo mode</span>}
+          </p>
+          <h2 className="vhead">
+            {c.shortfall === undefined ? (
+              <>Expected pay: {fmtMoney(c.expectedTotal, cur)}</>
+            ) : gap > 0 ? (
+              <>You were underpaid {fmtMoney(gap, cur)}</>
+            ) : (
+              <>
+                <CheckCircle2 size={28} aria-hidden /> No underpayment found
+              </>
+            )}
+          </h2>
+          <p className="vsub">
+            Expected {fmtMoney(c.expectedTotal, cur)}
+            {c.paidTotal !== undefined ? `, paid ${fmtMoney(c.paidTotal, cur)}` : ", no total found on the payslip"}. {c.workedHours} hours across {report.shifts.length} shift(s).
+          </p>
+          {why.length > 0 && (
+            <ul className="vfind">
+              {why.map((w, i) => (
+                <li key={i}>
+                  <AlertTriangle size={14} aria-hidden />
+                  <span>
+                    {w.text}
+                    {w.amount !== undefined && <b>: {fmtMoney(w.amount, cur)}</b>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(key.rules.length > 0 || key.holidays.length > 0) && (
+            <>
+              <h3 className="vrules-h">
+                <Landmark size={15} aria-hidden /> The rules behind this number
+              </h3>
+              <div className="vrules">
+                {key.holidays.map((h, i) => (
+                  <MiniRule key={`h${i}`} title={`National holiday: ${h.name}`} value={holidayLabel(h)} cit={h.citations.at(-1)} />
+                ))}
+                {key.rules.map((r, i) => (
+                  <MiniRule key={i} title={specByKey(r.key)?.label ?? r.key} value={ruleValueText(r, cur)} cit={r.citations[0]} />
+                ))}
+              </div>
+            </>
+          )}
+          <a className="more" href="#details">
+            <ArrowDown size={14} aria-hidden /> Every line, every source, and a message to your employer
+          </a>
+        </section>
+      )}
 
       <section className="grid">
         <div className="card input">
+          <h2>Check your own pay</h2>
           <div className="seg" role="tablist" aria-label="Where you work">
             {(["TW", "US-NY"] as Jurisdiction[]).map((j) => (
               <button key={j} role="tab" aria-selected={jurisdiction === j} className={jurisdiction === j ? "on" : ""} onClick={() => setJurisdiction(j)}>
@@ -142,16 +297,28 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
             ))}
           </div>
           {jurisdiction === "US-NY" ? (
-            <label className="field">
-              Region
-              <select value={region} onChange={(e) => setRegion(e.target.value as NyRegion)}>
-                {(Object.keys(NY_REGION_LABEL) as NyRegion[]).map((r) => (
-                  <option key={r} value={r}>
-                    {NY_REGION_LABEL[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="row2">
+              <label className="field">
+                Region
+                <select value={region} onChange={(e) => setRegion(e.target.value as NyRegion)}>
+                  {(Object.keys(NY_REGION_LABEL) as NyRegion[]).map((r) => (
+                    <option key={r} value={r}>
+                      {NY_REGION_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Job
+                <select value={job} onChange={(e) => setJob(e.target.value as NyJob)}>
+                  {(Object.keys(NY_JOB_LABEL) as NyJob[]).map((k) => (
+                    <option key={k} value={k}>
+                      {NY_JOB_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           ) : (
             <div className="row2">
               <label className="field">
@@ -179,7 +346,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
             </div>
           )}
           <div className="samples">
-            <span>Synthetic samples:</span>
+            <span>More synthetic samples:</span>
             {samples.map((s) => (
               <button key={s.id} className="chip" onClick={() => loadSample(s.id)}>
                 {s.title}
@@ -197,7 +364,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
           <p className="privacy">
             <Lock size={14} aria-hidden /> Names, ID numbers, phone numbers, emails and account numbers are removed before anything reaches a model or a search API. Please use synthetic data on this public demo.
           </p>
-          <button className="go" onClick={run} disabled={busy}>
+          <button className="go" onClick={() => run()} disabled={busy}>
             {busy ? <Loader2 className="spin" size={18} aria-hidden /> : <ShieldCheck size={18} aria-hidden />}
             {busy ? "Checking" : "Check my pay"}
           </button>
@@ -209,8 +376,11 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
         </div>
 
         <div className="card trace" aria-live="polite">
-          <h2>What the agent is doing</h2>
-          {steps.length === 0 && !busy && <p className="muted">Steps appear here as the agent parses, searches official sites, verifies quotes and computes pay.</p>}
+          <h2>
+            What the agent did {demo && <span className="tag">Demo mode</span>}
+          </h2>
+          {steps.length === 0 && !busy && <p className="muted">Steps appear here as the agent reads the schedule, fetches official pages, checks every quote and computes pay.</p>}
+          {demo && steps.length > 0 && <p className="muted small">Scripted stand-in for the model; pages are saved copies. Every check below is the real code.</p>}
           <ol>
             {steps.map((s, i) => (
               <li key={i} className={`step ${s.kind}`}>
@@ -225,7 +395,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
       </section>
 
       {report && c && (
-        <section className="results">
+        <section className="results" id="details">
           <div className="totals">
             <div className="tot">
               <span>Expected</span>
@@ -260,7 +430,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
           <div className="card">
             <h2>Line by line</h2>
             <p className="muted">
-              {report.shifts.length} shift(s), {c.workedHours} hours. Parsed by {report.parse.source === "model" ? report.parse.model : "the rule-based parser"}. {report.parse.crossCheck}
+              {report.shifts.length} shift(s), {c.workedHours} hours. Read by {report.parse.source === "model" ? report.parse.model : "the rule-based parser"}. {report.parse.crossCheck}
             </p>
             <div className="tablewrap">
               <table>
@@ -279,7 +449,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
                   {c.lines.map((l, i) => {
                     const sh = report.shifts.find((s) => s.id === l.shiftId);
                     return (
-                      <tr key={i} className={l.multiplier > 1 ? "prem" : ""}>
+                      <tr key={i} className={l.multiplier > 1 || l.label.startsWith("Spread") ? "prem" : ""}>
                         <td>
                           {l.date}
                           {sh && sh.dayType !== "workday" && <small>{sh.holidayName ?? sh.dayType.replace(/_/g, " ")}</small>}
@@ -290,7 +460,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
                         </td>
                         <td>{l.hours}</td>
                         <td>{fmtMoney(l.baseRate, cur, true)}</td>
-                        <td>{fmtMultiplier(l.multiplier)}</td>
+                        <td>{fmtLineRate(l, cur)}</td>
                         <td>{fmtMoney(l.amount, cur, true)}</td>
                         <td>
                           {l.ruleKeys.map((k) => (
@@ -309,16 +479,25 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
 
           <div className="card">
             <h2>Official rules used</h2>
-            <p className="muted">Every value below was read by code from the quoted text, which was retrieved during this check. Nothing comes from model memory.</p>
+            <p className="muted">
+              Every value below was read by code from the quoted text, which was {demo ? "taken from the saved copies of the official pages" : "retrieved during this check"}. Nothing comes from model memory.
+            </p>
             <div className="rules">
               {report.rules.map((r, i) => (
-                <article key={i} className="rule" id={`rule-${r.key}`}>
+                <article key={i} className="rule" id={i === report.rules.findIndex((x) => x.key === r.key) ? `rule-${r.key}` : undefined}>
                   <header>
                     <h3>{specByKey(r.key)?.label ?? r.key}</h3>
                     <span className="val">{ruleValueText(r, cur)}</span>
                   </header>
                   <p className="meta">
-                    {r.effectiveFrom && <>From {r.effectiveFrom}{r.effectiveTo ? ` to ${r.effectiveTo}` : ""}. </>}
+                    {r.effectiveFrom && (
+                      <>
+                        From {r.effectiveFrom}
+                        {r.effectiveTo ? ` to ${r.effectiveTo}` : ""}.{" "}
+                      </>
+                    )}
+                    {r.region && <>{NY_REGION_LABEL[r.region]}. </>}
+                    {r.variant && <>{NY_JOB_LABEL[r.variant]}. </>}
                     <span className={r.status === "in_force" ? "ok" : "warn"}>{r.status === "in_force" ? "In force" : "Decided, pending approval"}</span>
                     {" | "}
                     {r.recordedBy === "agent" ? "Recorded by the agent" : "Read by code fallback"}
@@ -330,7 +509,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
                         <a href={ci.url} target="_blank" rel="noreferrer">
                           {ci.title} <ExternalLink size={12} aria-hidden />
                         </a>
-                        <span className="via">{ci.via.startsWith("fixture") ? "recorded copy (demo)" : "retrieved with Tavily"}</span>
+                        <Via c={ci} />
                       </figcaption>
                     </figure>
                   ))}
@@ -340,8 +519,16 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
                 <article key={`h${i}`} className="rule">
                   <header>
                     <h3>National holiday: {h.name}</h3>
-                    <span className="val">{h.monthDay}</span>
+                    <span className="val">{holidayLabel(h)}</span>
                   </header>
+                  {h.dateSource && (
+                    <p className="meta">
+                      {h.dateSource.note}{" "}
+                      <a href={h.dateSource.url} target="_blank" rel="noreferrer">
+                        {h.dateSource.title}
+                      </a>
+                    </p>
+                  )}
                   {h.citations.map((ci, k) => (
                     <figure key={k}>
                       <blockquote lang="zh-Hant">{ci.quote}</blockquote>
@@ -349,6 +536,7 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
                         <a href={ci.url} target="_blank" rel="noreferrer">
                           {ci.title} <ExternalLink size={12} aria-hidden />
                         </a>
+                        <Via c={ci} />
                       </figcaption>
                     </figure>
                   ))}
@@ -396,8 +584,14 @@ export default function FairShift({ initialMode, initialNote }: { initialMode: "
           </div>
 
           <p className="cost">
-            This check: {report.usage.modelCalls} model call(s), about US${report.usage.estCostUsd.toFixed(4)}, {report.usage.tavilyCredits} Tavily credit(s).{" "}
-            {report.modelsUsed.length > 0 && <>Models: {report.modelsUsed.join(", ")}.</>} {report.redactions > 0 && <>{report.redactions} personal detail(s) removed before sending.</>}
+            {demo ? (
+              <>Demo mode: no paid model or search calls were made. </>
+            ) : (
+              <>
+                This check: {report.usage.modelCalls} model call(s), about US${report.usage.estCostUsd.toFixed(4)}, {report.usage.tavilyCredits} Tavily credit(s).{" "}
+              </>
+            )}
+            {!demo && report.modelsUsed.length > 0 && <>Models: {report.modelsUsed.join(", ")}.</>} {report.redactions > 0 && <>{report.redactions} personal detail(s) removed before sending.</>}
           </p>
           <p className="disclaimer">{report.disclaimer}</p>
         </section>

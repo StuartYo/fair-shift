@@ -58,7 +58,7 @@ export function limits() {
     maxInputChars: num("APP_MAX_INPUT_CHARS", 4000),
     maxAgentSteps: num("APP_MAX_AGENT_STEPS", 24),
     maxToolCallsPerStep: num("APP_MAX_TOOL_CALLS_PER_STEP", 6),
-    maxTavilyCallsPerRun: num("APP_MAX_TAVILY_CALLS", 10),
+    maxTavilyCallsPerRun: num("APP_MAX_TAVILY_CALLS", 12),
     maxCompletionTokens: num("APP_MAX_COMPLETION_TOKENS", 1200),
     perRunUsd: num("APP_PER_RUN_USD", 0.05),
     perIpPerHour: num("APP_PER_IP_PER_HOUR", 6),
@@ -86,9 +86,11 @@ export function currentMode(): Mode {
 
 export function modeNote(mode: Mode = currentMode()): string {
   if (mode === "live") return "Live: Nemotron on Nebius Token Factory, sources retrieved with Tavily.";
-  if (process.env.APP_FORCE_MOCK === "1") return "Demo mode (forced by APP_FORCE_MOCK=1): scripted mock model and recorded fixtures.";
+  const what =
+    "a scripted stand-in for the model runs the same tools and checks over saved copies of the official pages (recorded 2026-10-13 and 2026-10-14). The math and the quote checks are the real code.";
+  if (process.env.APP_FORCE_MOCK === "1") return `Demo mode (APP_FORCE_MOCK=1): ${what}`;
   const missing = [!process.env.NEBIUS_API_KEY && "NEBIUS_API_KEY", !process.env.TAVILY_API_KEY && "TAVILY_API_KEY"]
     .filter(Boolean)
-    .join(", ");
-  return `Demo mode: scripted mock model and recorded fixtures. Missing ${missing}. Results show how the pipeline works, not a live model judgement.`;
+    .join(" and ");
+  return `Demo mode (no ${missing} yet): ${what} Live mode uses Nemotron on Nebius Token Factory and Tavily search.`;
 }

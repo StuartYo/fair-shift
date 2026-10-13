@@ -51,7 +51,17 @@ export function statedRates(quote: string): number[] {
   // English: "1 ½ times", "1.5 times", "one and one-half times", "time and one-half"
   if (/1\s*1\/2\s*times|1\s*½\s*times|1½\s*times/i.test(quote) || /\b1\.5\s*times\b/i.test(q)) out.push(1.5);
   if (/one and one[- ]half times|time and one[- ]half|time-and-a-half/i.test(q)) out.push(1.5);
+  if (/multiplied by 1\s*(?:½|1\/2)/i.test(quote) || /multiplied by 1\.5\b/i.test(q)) out.push(1.5);
   return out.filter((n) => Number.isFinite(n));
+}
+
+/** Hours thresholds stated in a quote: 每週工作總時數超過四十小時 -> 40, spread of hours exceeds 10 -> 10. */
+export function statedHourLimits(quote: string): number[] {
+  const q = quote.normalize("NFKC");
+  const out: number[] = [];
+  for (const m of q.matchAll(new RegExp(`每週工作總時數超過(${CN_NUM})小時`, "g"))) out.push(cnInt(m[1]));
+  for (const m of q.matchAll(/spread of hours exceeds (\d+)/gi)) out.push(Number(m[1]));
+  return out.filter((n) => Number.isFinite(n) && n > 0);
 }
 
 /** Money amounts stated in a quote: "$17.00", "17.00", "196元", "29,500元". */

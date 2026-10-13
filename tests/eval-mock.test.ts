@@ -31,6 +31,9 @@ describe("eval cases through the full pipeline (demo mode)", () => {
       expect(mwRule).toBeTruthy();
       if (c.expected.minWagePending) expect(mwRule!.status).toBe("pending_approval");
       for (const d of c.expected.holidayDates || []) expect(r.shifts.find((s) => s.date === d)?.dayType).toBe("holiday");
+      const usedKeys = new Set(r.computation.lines.flatMap((l) => l.ruleKeys));
+      for (const k of c.expected.ruleKeys || []) expect(usedKeys.has(k), `rule ${k} used`).toBe(true);
+      expect(r.computation.problems.filter((p) => p.kind === "missing_rule")).toEqual([]);
       for (const rule of r.rules) {
         expect(rule.citations.length).toBeGreaterThan(0);
         expect(rule.citations.every((x) => x.verified)).toBe(true);

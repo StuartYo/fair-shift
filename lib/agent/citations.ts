@@ -53,6 +53,22 @@ export class DocStore {
     return { ok: false, reason: "Quote not found verbatim in the retrieved text. Copy the exact words from the tool result." };
   }
 
+  /**
+   * The normalised text before each place the quote appears in retrieved copies
+   * of this URL (up to `before` characters). Lets code check which heading a
+   * quoted line sits under, e.g. the region of a rate table row.
+   */
+  contextsBefore(url: string, quote: string, before = 3000): string[] {
+    const q = normalise(quote);
+    const out: string[] = [];
+    if (!q) return out;
+    for (const d of this.docs.get(urlKey(url)) || []) {
+      const t = normalise(d.content);
+      for (let i = t.indexOf(q); i >= 0; i = t.indexOf(q, i + 1)) out.push(t.slice(Math.max(0, i - before), i));
+    }
+    return out;
+  }
+
   /** Code-side fallback: attach a citation when retrieved text contains the rule's anchor quote. */
   findAnchor(url: string, anchor: string): Citation | null {
     const r = this.verify(url, anchor);

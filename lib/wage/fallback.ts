@@ -1,6 +1,8 @@
+import { normalise } from "../agent/citations";
 import type { RetrievedDoc } from "../types";
-import { statedDates, statedRates } from "./numbers";
-import type { ProposedHoliday, ProposedRule } from "./verify";
+import { LUNAR_HOLIDAYS, LUNAR_QUOTE_RULES } from "./holidays-tw";
+import { statedDates, statedHourLimits, statedRates } from "./numbers";
+import { tipHeadings, type ProposedHoliday, type ProposedRule } from "./verify";
 import type { RuleKey } from "./types";
 
 // Deterministic extraction from retrieved official text. Used when the agent
@@ -15,7 +17,13 @@ const CLAUSES: Partial<Record<RuleKey, RegExp>> = {
   "tw.holiday": /雇主經徵得勞工同意於休假日工作者，工資應加倍發給。/,
   "tw.day_off": /但停止假期之工資，應加倍發給/,
   "ny.ot_weekly": /A standard work week is 40 hours\. If employees work any hours beyond that, then the employer must pay them at 1 ½ times the regular wage\./,
+  "tw.weekly_hours": /一、每日工作時間超過八小時或每週工作總時數超過四十小時之部分。/,
+  "ny.ot_tipped": /When an employer is taking a credit toward the basic minimum hourly rate pursuant to section 146-1\.3 of this Subpart, the overtime rate shall be the employee.s regular rate of pay before subtracting any tip credit, multiplied by 1½, minus the tip credit\./,
+  "ny.spread_hosp": /\(a\) On each day on which the spread of hours exceeds 10, an employee shall receive one additional hour of pay at the basic minimum hourly rate\./,
+  "ny.spread_misc": /An employee shall receive one hour.s pay at the basic minimum hourly wage rate, in addition to the minimum wage required in this Part for any day in which: \(a\) the spread of hours exceeds 10 hours;/,
 };
+
+const HOURS_KEYS: RuleKey[] = ["tw.weekly_hours", "ny.spread_hosp", "ny.spread_misc"];
 
 export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRule[] {
   const out: ProposedRule[] = [];
@@ -26,7 +34,7 @@ export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRu
       if (re) {
         const m = text.match(re);
         if (m) {
-          const r = statedRates(m[0]);
+          const r = HOURS_KEYS.includes(key) ? statedHourLimits(m[0]) : statedRates(m[0]);
           if (r.length === 1) {
             const value = key === "tw.ot_first2" || key === "tw.ot_next2" ? 1 + r[0] : r[0];
             out.push({ key, value, citations: [{ source_url: d.url, quote: m[0] }] });
@@ -79,7 +87,27 @@ export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRu
             out.push({ key, region, value: Number(v), effective_from: from, citations: [{ source_url: d.url, quote: next[0] }] });
         }
       }
+      if (key === "ny.tip_credit") out.push(...tipCreditRows(d));
     }
+  }
+  return out;
+}
+
+/**
+ * Every "$X Cash Wage, $Y Credit, ... on and after <date>." entry in the
+ * Hospitality Wage Order (2024 on), tagged with the region and job type
+ * headings above it. verifyRule checks the headings again.
+ */
+function tipCreditRows(d: RetrievedDoc): ProposedRule[] {
+  const out: ProposedRule[] = [];
+  const text = d.content.replace(/\s+/g, " ");
+  const re = /\$(\d+\.\d{2}) Cash Wage, \$(\d+\.\d{2}) Credit, \$\d+\.\d{2} (?:Total|Tip Threshold) on and after ([A-Z][a-z]+ \d{1,2}, \d{4})[.;]/g;
+  for (const m of text.matchAll(re)) {
+    const from = statedDates(m[3])[0];
+    if (!from || from < "2024-01-01") continue;
+    const { region, variant } = tipHeadings(normalise(text.slice(0, m.index)));
+    if (!region || !variant) continue;
+    out.push({ key: "ny.tip_credit", value: Number(m[2]), region, variant, effective_from: from, citations: [{ source_url: d.url, quote: m[0] }] });
   }
   return out;
 }
@@ -114,6 +142,36 @@ export function fallbackHolidays(docs: RetrievedDoc[]): ProposedHoliday[] {
           { source_url: d.url, quote: off },
         ],
       });
+    }
+  }
+  return out;
+}
+
+/**
+ * Lunar-calendar holidays on the given shift dates. The solar date comes from
+ * the official calendar table (holidays-tw.ts); the two quotes (lunar date rule
+ * and day off) are read from the retrieved act, 紀念日及節日實施條例 Art. 5 and 6.
+ */
+export function fallbackLunarHolidays(docs: RetrievedDoc[], shiftDates: string[]): ProposedHoliday[] {
+  const out: ProposedHoliday[] = [];
+  const wanted = LUNAR_HOLIDAYS.filter((h) => shiftDates.includes(h.date));
+  if (wanted.length === 0) return out;
+  for (const d of docs) {
+    const text = d.content.replace(/\s+/g, " ");
+    // Candidate clauses: "X節：..." up to the end of the sentence, and Art. 6 items.
+    const clauses = [...text.matchAll(/[一二三四五六七八九十]、[^、。]*?：[^。]*。|（[一二三四五六七八九十]+）[^（）。]*?：[^。]*。/g)].map((m) =>
+      m[0].replace(/^([一二三四五六七八九十]、|（[一二三四五六七八九十]+）)/, "").trim(),
+    );
+    const art6 = text.match(/[一二]、[^、：]*節[^：]*：均放假一日。|一、除夕及春節：[^。]*。/g) || [];
+    for (const h of wanted) {
+      const r = LUNAR_QUOTE_RULES[h.group];
+      const off = art6.find((q) => r.off.test(normalise(q)));
+      if (!off) continue;
+      // The New Year clause states both the dates and the day off: quote it once.
+      const rule = r.rule.test(normalise(off)) ? off : clauses.find((q) => r.rule.test(normalise(q)));
+      if (!rule) continue;
+      const quotes = rule === off ? [off] : [rule, off];
+      out.push({ date: h.date, name: h.name, citations: quotes.map((quote) => ({ source_url: d.url, quote })) });
     }
   }
   return out;

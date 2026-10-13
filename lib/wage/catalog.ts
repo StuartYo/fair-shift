@@ -1,13 +1,15 @@
-import type { Jurisdiction, NyRegion, RuleKey } from "./types";
+import type { Jurisdiction, NyJob, NyRegion, RuleKey } from "./types";
 
 // What each jurisdiction needs, where the official text lives, and how code
-// checks a value. Seed URLs were fetched and read on 2026-10-13. They are hints:
+// checks a value. Seed URLs were fetched and read on 2026-10-13 (2026-10-14 for
+// LSA Enforcement Rules Art. 20-1 and the NYS wage orders). They are hints:
 // values are only accepted from text retrieved during the run.
 
 export type ValueKind =
   | "amount" // hourly money amount, must appear in a quote
   | "extra_fraction" // quote states the extra (加給三分之一): multiplier = 1 + fraction
-  | "literal_rate"; // quote states the full rate (一又三分之一, 加倍, 1 ½ times)
+  | "literal_rate" // quote states the full rate (一又三分之一, 加倍, 1 ½ times)
+  | "hours_limit"; // quote states an hours threshold (每週工作總時數超過四十小時, spread of hours exceeds 10)
 
 export interface RuleSpec {
   key: RuleKey;
@@ -19,6 +21,8 @@ export interface RuleSpec {
   query: string;
   /** Plain description for the agent. */
   ask: string;
+  /** New York: which job types need this rule. Default: all. */
+  nyJobs?: NyJob[];
 }
 
 
@@ -28,11 +32,18 @@ const MOL_2027 = "https://www.mol.gov.tw/1607/1632/1633/99195/post";
 const LSA_24 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24";
 const LSA_39 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=39";
 const LSA_40 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=40";
+export const LSA_RULES_20_1 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030002&flno=20-1";
 export const MOL_HOURLY = "https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/";
 export const MOL_HOLIDAY_PAY = "https://www.mol.gov.tw/1607/28162/28166/28180/81521/81533/";
 export const TW_HOLIDAY_ACT = "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095";
 const NY_MW = "https://dol.ny.gov/minimum-wage-0";
 const NY_P700 = "https://dol.ny.gov/system/files/documents/2025/12/p700_12-25.pdf";
+/** Hospitality Industry Wage Order, 12 NYCRR Part 146, CR 146 (09/24). Linked from https://dol.ny.gov/wage-orders */
+export const NY_CR146 = "https://forms.labor.ny.gov/WP/CR146.pdf";
+/** Miscellaneous Industries and Occupations Wage Order, 12 NYCRR Part 142. Linked from https://dol.ny.gov/wage-orders */
+export const NY_CR142 = "https://forms.labor.ny.gov/WP/CR142.pdf";
+const TIPPED: NyJob[] = ["food_service", "service"];
+const HOSPITALITY: NyJob[] = ["hospitality", "food_service", "service"];
 
 export const RULE_SPECS: RuleSpec[] = [
   {
@@ -106,6 +117,16 @@ export const RULE_SPECS: RuleSpec[] = [
     ask: "Art. 40: pay when the employer suspends a day off. Quote only that sentence.",
   },
   {
+    key: "tw.weekly_hours",
+    jurisdiction: "TW",
+    label: "Overtime starts after 40 hours a week",
+    kind: "hours_limit",
+    requiresDate: false,
+    seedUrls: [LSA_RULES_20_1],
+    query: "勞動基準法施行細則 第20條之1 延長勞工工作之時間 每週工作總時數超過四十小時之部分",
+    ask: "LSA Enforcement Rules Art. 20-1: overtime includes the hours beyond a weekly total. Value is that weekly number of hours. Quote only that item.",
+  },
+  {
     key: "ny.min_wage_hourly",
     jurisdiction: "US-NY",
     label: "New York State hourly minimum wage",
@@ -125,10 +146,70 @@ export const RULE_SPECS: RuleSpec[] = [
     query: "New York overtime 40 hours 1 1/2 times regular wage",
     ask: "Overtime rate for hours beyond 40 in a workweek. Quote only that sentence.",
   },
+  {
+    key: "ny.tip_credit",
+    jurisdiction: "US-NY",
+    label: "New York tip credit",
+    kind: "amount",
+    requiresDate: true,
+    seedUrls: [NY_CR146],
+    query: "New York hospitality wage order tip credit food service worker Cash Wage Credit on and after January 1, 2026",
+    ask: "12 NYCRR 146-1.3: the maximum tip credit per hour for the worker's region and tipped job (food service worker or service employee). Value is the Credit amount. Quote one rate line, e.g. '$11.35 Cash Wage, $5.65 Credit, $17.00 Total on and after January 1, 2026.' and set region and variant.",
+    nyJobs: TIPPED,
+  },
+  {
+    key: "ny.ot_tipped",
+    jurisdiction: "US-NY",
+    label: "Tipped overtime (1.5x before the tip credit)",
+    kind: "literal_rate",
+    requiresDate: false,
+    seedUrls: [NY_CR146],
+    query: "New York tipped employee overtime rate regular rate before subtracting any tip credit multiplied by 1½ minus the tip credit",
+    ask: "12 NYCRR 146-1.4: how overtime is paid when a tip credit is taken. Value is the multiplier. Quote only that sentence.",
+    nyJobs: TIPPED,
+  },
+  {
+    key: "ny.spread_hosp",
+    jurisdiction: "US-NY",
+    label: "Spread of hours over 10 (restaurants and hotels)",
+    kind: "hours_limit",
+    requiresDate: false,
+    seedUrls: [NY_CR146],
+    query: "New York hospitality spread of hours exceeds 10 one additional hour of pay at the basic minimum hourly rate",
+    ask: "12 NYCRR 146-1.6(a): extra pay when the workday spans more than a number of hours. Value is that number of hours. Quote only clause (a).",
+    nyJobs: HOSPITALITY,
+  },
+  {
+    key: "ny.spread_misc",
+    jurisdiction: "US-NY",
+    label: "Spread of hours over 10 (other industries)",
+    kind: "hours_limit",
+    requiresDate: false,
+    seedUrls: [NY_CR142],
+    query: "New York miscellaneous wage order spread of hours exceeds 10 hours one hour's pay at the basic minimum hourly wage rate",
+    ask: "12 NYCRR 142-2.4: one hour's pay at the minimum wage when the spread of hours exceeds a number of hours. Value is that number of hours. Quote the sentence through '(a) the spread of hours exceeds 10 hours;'.",
+    nyJobs: ["general"],
+  },
 ];
 
-export function specsFor(j: Jurisdiction): RuleSpec[] {
-  return RULE_SPECS.filter((s) => s.jurisdiction === j);
+/** Rules a check needs. For New York this depends on the job type. */
+export function specsFor(j: Jurisdiction, nyJob: NyJob = "general"): RuleSpec[] {
+  return RULE_SPECS.filter((s) => s.jurisdiction === j && (j !== "US-NY" || !s.nyJobs || s.nyJobs.includes(nyJob)));
+}
+
+export const NY_JOB_LABEL: Record<NyJob, string> = {
+  general: "Not tipped, not a restaurant or hotel",
+  hospitality: "Restaurant or hotel, not tipped",
+  food_service: "Tipped food server or bartender",
+  service: "Other tipped service job",
+};
+
+export function isTipped(job?: NyJob): job is "food_service" | "service" {
+  return job === "food_service" || job === "service";
+}
+
+export function isHospitality(job?: NyJob): boolean {
+  return job === "hospitality" || isTipped(job);
 }
 
 export function specByKey(k: string): RuleSpec | undefined {

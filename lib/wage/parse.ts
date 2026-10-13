@@ -108,8 +108,15 @@ export function parsePayslipRules(text: string, currency: Payslip["currency"]): 
   if (rate) p.hourlyRate = Number(rate[2]);
   const hours = t.match(/(總工時|工時|時數|hours paid|paid hours|hours)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
   if (hours) p.hoursPaid = Number(hours[2]);
-  const gross = t.match(/(實發金額|實發|應發|薪資總額|總計|合計|gross pay|gross|total pay|net pay|total)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+  // Lines about tips are never the wages paid.
+  const wageText = t
+    .split(/\r?\n/)
+    .filter((l) => !/tip|小費/i.test(l))
+    .join("\n");
+  const gross = wageText.match(/(實發金額|實發|應發|薪資總額|總計|合計|gross pay|gross wages|gross|total pay|wages paid|net pay|total)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
   if (gross) p.grossPaid = Number(gross[2].replace(/,/g, ""));
+  const tips = t.match(/(tips? (?:received|reported|total)|tips?|小費)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+  if (tips) p.tips = Number(tips[2].replace(/,/g, ""));
   const dates = [...t.matchAll(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/g)].map((m) => `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`);
   if (dates.length >= 2) {
     p.periodStart = dates[0];

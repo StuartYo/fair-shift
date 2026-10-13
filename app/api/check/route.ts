@@ -6,7 +6,7 @@ import { getProviders } from "@/lib/providers";
 import type { FixtureSet } from "@/lib/search/fixture";
 import { rulesMockScript } from "@/lib/wage/agent";
 import { runFairShift } from "@/lib/wage/run";
-import type { CheckInput, NyRegion } from "@/lib/wage/types";
+import type { CheckInput, NyJob, NyRegion } from "@/lib/wage/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -23,9 +23,11 @@ function parseBody(b: unknown): CheckInput | string {
   if (s.length > max || p.length > max) return `Each box is limited to ${max} characters.`;
   const wd = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 6 ? v : undefined);
   const region = (["nyc", "li_westchester", "rest"] as const).includes(o.nyRegion as NyRegion) ? (o.nyRegion as NyRegion) : "nyc";
+  const job = (["general", "hospitality", "food_service", "service"] as const).includes(o.nyJob as NyJob) ? (o.nyJob as NyJob) : "general";
   return {
     jurisdiction: j,
     nyRegion: j === "US-NY" ? region : undefined,
+    nyJob: j === "US-NY" ? job : undefined,
     scheduleText: s,
     payslipText: p,
     restDayWeekday: wd(o.restDayWeekday),

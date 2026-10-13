@@ -20,7 +20,7 @@ export function templateExplanation(c: Computation, shifts: Shift[], zh: boolean
     `You worked ${c.workedHours} hours across ${shifts.length} shift(s). Based on the official rules retrieved, the expected pay is ${exp}.`,
     paid ? `The payslip shows ${paid}.` : "No total was found on the payslip.",
     gap ? `That is ${gap} less than expected.` : paid ? "No shortfall was found." : "",
-    c.components.premiums > 0 ? `Premium pay for overtime, rest day or holiday hours accounts for ${money(c.components.premiums, cur)} of the expected total.` : "",
+    c.components.premiums > 0 ? `Extra pay for overtime, rest day, holiday or long-day (spread of hours) work accounts for ${money(c.components.premiums, cur)} of the expected total.` : "",
     c.components.minWageTopUp > 0 ? `Raising the stated rate to the minimum wage adds ${money(c.components.minWageTopUp, cur)}.` : "",
     special.length ? `Special days: ${special.map((s) => `${s.date} (${s.dayType.replace(/_/g, " ")}${s.holidayName ? `, ${s.holidayName}` : ""})`).join(", ")}.` : "",
   ]
@@ -31,7 +31,11 @@ export function templateExplanation(c: Computation, shifts: Shift[], zh: boolean
     ? [
         "您好，",
         `我核對了這期的班表與薪資單：總工時 ${c.workedHours} 小時，依勞動部公告與勞動基準法計算，應領 ${exp}${paid ? `，實領 ${paid}` : ""}${gap ? `，差額 ${gap}` : ""}。`,
-        special.length ? `其中 ${special.map((s) => s.date).join("、")} 屬於休息日或國定假日出勤，依法應另計加給。` : "",
+        special.length
+          ? `其中 ${special.map((s) => s.date).join("、")} 屬於休息日或國定假日出勤，依法應另計加給。`
+          : c.components.premiums > 0
+            ? "其中有超過每日 8 小時或每週 40 小時的工時，依法屬於延長工時，應另計加給。"
+            : "",
         "附上計算明細與官方條文連結，想請您協助確認，若有我算錯的地方也請告訴我。謝謝！",
       ]
         .filter(Boolean)
@@ -57,7 +61,7 @@ export function allowedNumbers(c: Computation, shifts: Shift[], rules: RuleRecor
   };
   [c.expectedTotal, c.paidTotal ?? 0, c.shortfall ?? 0, c.workedHours, c.components.base, c.components.minWageTopUp, c.components.premiums].forEach(add);
   for (const p of c.problems) if (p.amount !== undefined) add(p.amount);
-  for (const l of c.lines) [l.hours, l.baseRate, l.amount].forEach(add);
+  for (const l of c.lines) [l.hours, l.baseRate, l.amount, l.deduction ?? 0].forEach(add);
   for (const r of rules) add(r.value);
   for (const s of shifts) {
     for (const part of [...s.date.split("-"), ...s.start.split(":"), ...s.end.split(":")]) {
