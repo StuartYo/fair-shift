@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import fixtures from "../fixtures/official-pages.json";
-import { currentMode, modeNote } from "../lib/config";
+import { currentMode, liveSearchWithMockModel, modeNote } from "../lib/config";
 import { getProviders } from "../lib/providers";
 import type { FixtureSet } from "../lib/search/fixture";
 import { rulesMockScript } from "../lib/wage/agent";
@@ -14,9 +14,15 @@ import { evalMarkdown, headlineTable, type EvalRow, type EvalSummary } from "./r
 // npm run eval
 // Live (both keys set): runs Fair Shift and the pure-model baseline on every
 // case and writes eval/results/live-<time>.json and .md (commit these).
+// APP_LIVE_SEARCH=1 with only TAVILY_API_KEY: real Tavily retrieval, scripted
+// model; writes eval/results/tavily-mockmodel-<time>.* (committed).
 // Without keys: runs Fair Shift in demo mode and marks the baseline as pending
 // (never faked). Demo results are gitignored.
 // EVAL_ONLY=tw-holiday-unpaid,ny-clean limits the run to some cases.
+
+// Retrieved pages are cached in .cache/tavily (gitignored) so reruns cost no
+// credits. Set TAVILY_CACHE_DIR= (empty) to retrieve everything fresh.
+process.env.TAVILY_CACHE_DIR ??= ".cache/tavily";
 
 describe("Fair Shift vs pure-model baseline", () => {
   it("runs every case", { timeout: 20 * 60_000 }, async () => {
@@ -68,6 +74,8 @@ describe("Fair Shift vs pure-model baseline", () => {
           error: b.error,
         };
       }
+      const guards = r.trace.filter((t) => t.kind === "guard").map((t) => `${t.name}: ${t.detail}`);
+      console.log(`${c.id}: expected ${r.computation.expectedTotal} (truth ${c.expected.expectedTotal}) agent ${row.agentRecorded} / fallback ${row.codeFallback} rules, Tavily credits ${r.usage.tavilyCredits.toFixed(1)}${guards.map((g) => `\n  ${g}`).join("")}`);
       rows.push(row);
     }
     const summary: EvalSummary = {
@@ -78,7 +86,9 @@ describe("Fair Shift vs pure-model baseline", () => {
       models: { agent: [...agentModels], baseline: baselineModel },
     };
     mkdirSync("eval/results", { recursive: true });
-    const stem = `eval/results/${mode}-${summary.ranAt.replace(/[:.]/g, "-")}`;
+    // Mock model + live Tavily is labelled separately and committed (it tests real retrieval).
+    const label = mode === "mock" && liveSearchWithMockModel() ? "tavily-mockmodel" : mode;
+    const stem = `eval/results/${label}-${summary.ranAt.replace(/[:.]/g, "-")}`;
     writeFileSync(`${stem}.json`, JSON.stringify({ summary, rows }, null, 2));
     writeFileSync(`${stem}.md`, evalMarkdown(summary, rows));
     console.log(`\nWrote ${stem}.json and ${stem}.md\n`);

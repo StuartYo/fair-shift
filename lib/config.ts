@@ -84,8 +84,19 @@ export function currentMode(): Mode {
   return hasNebiusKey() && hasTavilyKey() ? "live" : "mock";
 }
 
+/**
+ * Demo model with real retrieval: APP_LIVE_SEARCH=1 and a Tavily key, no model key
+ * needed. The scripted model drives the same tools over pages Tavily retrieves
+ * from the official sites. Used to test retrieval before model credits exist.
+ */
+export function liveSearchWithMockModel(): boolean {
+  return currentMode() === "mock" && hasTavilyKey() && process.env.APP_LIVE_SEARCH === "1";
+}
+
 export function modeNote(mode: Mode = currentMode()): string {
   if (mode === "live") return "Live: Nemotron on Nebius Token Factory, sources retrieved with Tavily.";
+  if (liveSearchWithMockModel())
+    return "Demo model, live sources (APP_LIVE_SEARCH=1): a scripted stand-in for the model runs the same tools and checks over official pages retrieved with Tavily during the run. The math and the quote checks are the real code.";
   const what =
     "a scripted stand-in for the model runs the same tools and checks over saved copies of the official pages (recorded 2026-10-13 and 2026-10-14). The math and the quote checks are the real code.";
   if (process.env.APP_FORCE_MOCK === "1") return `Demo mode (APP_FORCE_MOCK=1): ${what}`;

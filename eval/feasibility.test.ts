@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { currentMode, modelChain } from "../lib/config";
 import { NebiusProvider } from "../lib/llm/nebius";
 import { TavilyProvider } from "../lib/search/tavily";
+import { LSA_ALL } from "../lib/wage/catalog";
 import { normaliseModelShifts } from "../lib/wage/parse";
 
 // npm run feasibility
 // The day-one go / no-go test from 選題複審.md section 6. Needs both keys.
+// The Tavily half alone, for every source: npm run probe:sources (Tavily key only).
 // Costs: about 6 Tavily credits and well under US$0.05 of Nemotron.
 // Pass bar: Tavily finds the Taiwan and New York rate pages on official
 // domains with the current numbers, and Nano parses at least 4 of 5
@@ -36,9 +38,11 @@ describe.skipIf(!live)("day-one feasibility (live keys required)", () => {
     expect(doc?.content).toContain("每小時最低工資為196元");
   });
 
-  it("Tavily extracts Labor Standards Act Art. 24 from law.moj.gov.tw", { timeout: 60_000 }, async () => {
-    const { doc } = await tavily.extract("https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24");
-    expect(doc?.content).toContain("三分之一");
+  // law.moj.gov.tw returns only the page frame to Tavily (2026-10-14), so the
+  // Labor Standards Act comes from the Ministry of Labor's own law database.
+  it("Tavily extracts Labor Standards Act Art. 24 from laws.mol.gov.tw", { timeout: 120_000 }, async () => {
+    const { doc } = await tavily.extract(LSA_ALL);
+    expect(doc?.content.replace(/\s+/g, "")).toContain("按平日每小時工資額加給三分之一以上");
   });
 
   it("Tavily finds the New York 2026 minimum wage on dol.ny.gov", { timeout: 60_000 }, async () => {

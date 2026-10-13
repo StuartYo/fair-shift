@@ -1,8 +1,10 @@
+import { DGPA_CALENDARS } from "./holidays-tw";
 import type { Jurisdiction, NyJob, NyRegion, RuleKey } from "./types";
 
 // What each jurisdiction needs, where the official text lives, and how code
 // checks a value. Seed URLs were fetched and read on 2026-10-13 (2026-10-14 for
-// LSA Enforcement Rules Art. 20-1 and the NYS wage orders). They are hints:
+// LSA Enforcement Rules Art. 20-1 and the NYS wage orders) and retrieved with
+// Tavily extract on 2026-10-14 (eval/sources-probe.test.ts). They are hints:
 // values are only accepted from text retrieved during the run.
 
 export type ValueKind =
@@ -27,15 +29,26 @@ export interface RuleSpec {
 
 
 
-const MOL_HISTORY = "https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/";
-const MOL_2027 = "https://www.mol.gov.tw/1607/1632/1633/99195/post";
-const LSA_24 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24";
-const LSA_39 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=39";
-const LSA_40 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=40";
-export const LSA_RULES_20_1 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030002&flno=20-1";
+export const MOL_HISTORY = "https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/";
+export const MOL_2027 = "https://www.mol.gov.tw/1607/1632/1633/99195/post";
+// Labor Standards Act and its Enforcement Rules, full text on the Ministry of
+// Labor's own law database (勞動法令查詢系統). Tavily extract returns the article
+// text from these pages; from law.moj.gov.tw it returns only the page frame
+// (checked 2026-10-14, basic and advanced extract). The law.moj.gov.tw links
+// stay in the README for people.
+export const LSA_ALL = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014930";
+export const LSA_RULES_ALL = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014931";
 export const MOL_HOURLY = "https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/";
-export const MOL_HOLIDAY_PAY = "https://www.mol.gov.tw/1607/28162/28166/28180/81521/81533/";
-export const TW_HOLIDAY_ACT = "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095";
+/**
+ * 紀念日及節日實施條例 Art. 3 to 9, quoted verbatim on the DGPA government office
+ * calendar page of each year (same source as the lunar holiday dates). law.moj.gov.tw
+ * has the act too, but Tavily cannot read its article text.
+ */
+export function twHolidayActUrl(dates: string[] = []): string {
+  const years = Object.keys(DGPA_CALENDARS).sort();
+  const y = [...dates].sort().map((d) => d.slice(0, 4)).find((x) => years.includes(x)) ?? years[years.length - 1];
+  return DGPA_CALENDARS[y].url;
+}
 const NY_MW = "https://dol.ny.gov/minimum-wage-0";
 const NY_P700 = "https://dol.ny.gov/system/files/documents/2025/12/p700_12-25.pdf";
 /** Hospitality Industry Wage Order, 12 NYCRR Part 146, CR 146 (09/24). Linked from https://dol.ny.gov/wage-orders */
@@ -62,7 +75,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Overtime, first 2 extra hours on a workday",
     kind: "extra_fraction",
     requiresDate: false,
-    seedUrls: [LSA_24],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 第24條 延長工作時間在二小時以內者 加給三分之一",
     ask: "Labor Standards Act Art. 24: pay for the first 2 overtime hours. Quote only that clause.",
   },
@@ -72,7 +85,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Overtime, next 2 extra hours on a workday",
     kind: "extra_fraction",
     requiresDate: false,
-    seedUrls: [LSA_24],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 第24條 再延長工作時間在二小時以內者 加給三分之二",
     ask: "Art. 24: pay for overtime hours 3 and 4. Quote only that clause.",
   },
@@ -82,7 +95,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Rest day work, first 2 hours",
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_24, MOL_HOURLY],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 休息日工作 二小時以內 另再加給一又三分之一",
     ask: "Art. 24 para. 2: rest day (休息日) pay for the first 2 hours. Quote only that clause.",
   },
@@ -92,7 +105,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Rest day work, after 2 hours",
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_24],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 休息日 工作二小時後再繼續工作者 另再加給一又三分之二",
     ask: "Art. 24 para. 2: rest day pay after the first 2 hours. Quote only that clause.",
   },
@@ -102,7 +115,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Work on a national holiday",
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_39, MOL_HOLIDAY_PAY],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 第39條 休假日工作 工資應加倍發給",
     ask: "Art. 39: pay for working on a national holiday (休假日). Quote only that sentence.",
   },
@@ -112,7 +125,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Work on the regular day off (emergencies only)",
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_40],
+    seedUrls: [LSA_ALL],
     query: "勞動基準法 第40條 停止假期之工資 應加倍發給",
     ask: "Art. 40: pay when the employer suspends a day off. Quote only that sentence.",
   },
@@ -122,7 +135,7 @@ export const RULE_SPECS: RuleSpec[] = [
     label: "Overtime starts after 40 hours a week",
     kind: "hours_limit",
     requiresDate: false,
-    seedUrls: [LSA_RULES_20_1],
+    seedUrls: [LSA_RULES_ALL],
     query: "勞動基準法施行細則 第20條之1 延長勞工工作之時間 每週工作總時數超過四十小時之部分",
     ask: "LSA Enforcement Rules Art. 20-1: overtime includes the hours beyond a weekly total. Value is that weekly number of hours. Quote only that item.",
   },

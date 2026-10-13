@@ -23,12 +23,24 @@ const CLAUSES: Partial<Record<RuleKey, RegExp>> = {
   "ny.spread_misc": /An employee shall receive one hour.s pay at the basic minimum hourly wage rate, in addition to the minimum wage required in this Part for any day in which: \(a\) the spread of hours exceeds 10 hours;/,
 };
 
+/**
+ * Collapse whitespace, then drop the spaces left between CJK characters. Law
+ * databases hard-wrap articles mid-clause ("加給三分之一以" newline "上。"), which
+ * would otherwise break the clause patterns. Quotes built from this text still
+ * verify, because quote checking ignores whitespace.
+ */
+const CJK = "[\\u3000-\\u303f\\u3400-\\u9fff\\uff00-\\uffef]";
+const CJK_GAP = new RegExp(`(?<=${CJK}) (?=${CJK})`, "g");
+export function flatText(s: string): string {
+  return s.replace(/\s+/g, " ").replace(CJK_GAP, "");
+}
+
 const HOURS_KEYS: RuleKey[] = ["tw.weekly_hours", "ny.spread_hosp", "ny.spread_misc"];
 
 export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRule[] {
   const out: ProposedRule[] = [];
   for (const d of docs) {
-    const text = d.content.replace(/\s+/g, " ");
+    const text = flatText(d.content);
     for (const key of keys) {
       const re = CLAUSES[key];
       if (re) {
@@ -100,7 +112,7 @@ export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRu
  */
 function tipCreditRows(d: RetrievedDoc): ProposedRule[] {
   const out: ProposedRule[] = [];
-  const text = d.content.replace(/\s+/g, " ");
+  const text = flatText(d.content);
   const re = /\$(\d+\.\d{2}) Cash Wage, \$(\d+\.\d{2}) Credit, \$\d+\.\d{2} (?:Total|Tip Threshold) on and after ([A-Z][a-z]+ \d{1,2}, \d{4})[.;]/g;
   for (const m of text.matchAll(re)) {
     const from = statedDates(m[3])[0];
@@ -116,7 +128,7 @@ function tipCreditRows(d: RetrievedDoc): ProposedRule[] {
 export function fallbackHolidays(docs: RetrievedDoc[]): ProposedHoliday[] {
   const out: ProposedHoliday[] = [];
   for (const d of docs) {
-    const text = d.content.replace(/\s+/g, " ");
+    const text = flatText(d.content);
     const art4 = text.match(/下列紀念日均放假一日，其餘均不放假：[^第]*/);
     const art6 = text.match(/[一二]、[^、：]*節[^：]*：均放假一日。/g) || [];
     const offQuotes = [art4?.[0].trim(), ...art6.map((s) => s.trim())].filter(Boolean) as string[];
@@ -157,10 +169,11 @@ export function fallbackLunarHolidays(docs: RetrievedDoc[], shiftDates: string[]
   const wanted = LUNAR_HOLIDAYS.filter((h) => shiftDates.includes(h.date));
   if (wanted.length === 0) return out;
   for (const d of docs) {
-    const text = d.content.replace(/\s+/g, " ");
+    const text = flatText(d.content);
     // Candidate clauses: "X節：..." up to the end of the sentence, and Art. 6 items.
-    const clauses = [...text.matchAll(/[一二三四五六七八九十]、[^、。]*?：[^。]*。|（[一二三四五六七八九十]+）[^（）。]*?：[^。]*。/g)].map((m) =>
-      m[0].replace(/^([一二三四五六七八九十]、|（[一二三四五六七八九十]+）)/, "").trim(),
+    // Sub-items are numbered （一） in the act and (一) on the DGPA page.
+    const clauses = [...text.matchAll(/[一二三四五六七八九十]、[^、。]*?：[^。]*。|[（(][一二三四五六七八九十]+[）)][^（）()。]*?：[^。]*。/g)].map((m) =>
+      m[0].replace(/^([一二三四五六七八九十]、|[（(][一二三四五六七八九十]+[）)])/, "").trim(),
     );
     const art6 = text.match(/[一二]、[^、：]*節[^：]*：均放假一日。|一、除夕及春節：[^。]*。/g) || [];
     for (const h of wanted) {

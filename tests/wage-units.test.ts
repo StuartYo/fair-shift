@@ -13,7 +13,7 @@ const docs = new DocStore();
 for (const d of (fixtures as { docs: { url: string; title: string; content: string }[] }).docs)
   docs.add({ ...d, via: "fixture_extract", retrievedAt: "2026-10-13" });
 
-const LSA24 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24";
+const LSA24 = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014930";
 const HIST = "https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/";
 const P2027 = "https://www.mol.gov.tw/1607/1632/1633/99195/post";
 const P700 = "https://dol.ny.gov/system/files/documents/2025/12/p700_12-25.pdf";
@@ -69,7 +69,7 @@ describe("rule verification", () => {
     expect(verifyRule({ key: "ny.min_wage_hourly", value: 16, region: "nyc", effective_from: "2026-01-01", citations: [{ source_url: P700, quote: q }, { source_url: P700, quote: "From 01/01/2026 to 12/31/2026, the New York State basic minimum wage is:" }] }, docs, "US-NY", "agent").ok).toBe(false);
   });
   it("verifies a holiday only with a date quote and a day-off quote", () => {
-    const H = "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095";
+    const H = "https://www.dgpa.gov.tw/information?uid=30&pid=12982";
     const props = fallbackHolidays(docs.all());
     const natl = props.find((p) => p.month_day === "10-10")!;
     expect(verifyHoliday(natl, docs, "agent").ok).toBe(true);
@@ -78,8 +78,8 @@ describe("rule verification", () => {
     expect(props.some((p) => p.month_day === "11-12")).toBe(false);
     expect(verifyHoliday({ month_day: "11-12", name: "國父誕辰紀念日", citations: [{ source_url: H, quote: "國父誕辰紀念日：十一月十二日" }] }, docs, "agent").ok).toBe(false);
   });
-  it("finds the paid fixed-date holidays in the holiday act", () => {
-    const mds = fallbackHolidays(docs.all()).map((p) => p.month_day).sort();
+  it("finds the paid fixed-date holidays in the holiday act (quoted on both DGPA calendar pages)", () => {
+    const mds = [...new Set(fallbackHolidays(docs.all()).map((p) => `${p.month_day} ${p.name}`))].map((x) => x.slice(0, 5)).sort();
     expect(mds).toEqual(["01-01", "02-28", "04-04", "05-01", "09-28", "09-28", "10-10", "10-25", "12-25"]);
   });
   it("code fallback extracts every Taiwan and New York rule from the recorded pages", () => {

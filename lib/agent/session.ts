@@ -56,6 +56,64 @@ function parseArgs(raw: string): Record<string, unknown> {
   }
 }
 
+const VIEW_CHARS = 4000;
+
+function focusTokens(s: string): string[] {
+  const out = new Set<string>();
+  const lower = s.toLowerCase();
+  for (const w of lower.match(/[a-z0-9]{3,}/g) || []) out.add(w);
+  const cjk = lower.replace(/[^㐀-鿿]/g, "");
+  for (let i = 0; i < cjk.length - 1; i++) out.add(cjk.slice(i, i + 2));
+  return [...out];
+}
+
+/**
+ * What fetch_official shows the model. Short pages: the whole text. Long pages
+ * (a whole law, a 40-page wage order): the start, or with `focus` the blocks
+ * that best match it, in page order. Every block is a verbatim slice, so quotes
+ * copied from it still verify against the full retrieved page.
+ */
+export function pageView(content: string, focus: string): { text: string; note?: string } {
+  if (content.length <= VIEW_CHARS) return { text: content };
+  const toks = focusTokens(focus);
+  const start = { text: content.slice(0, VIEW_CHARS) };
+  if (toks.length === 0)
+    return { ...start, note: `Page has ${content.length} characters; showing the start. Call fetch_official again with focus to see other parts.` };
+  // Blocks of up to ~600 characters, cut at a line break where possible.
+  const blocks: string[] = [];
+  for (let i = 0; i < content.length; ) {
+    let end = Math.min(content.length, i + 600);
+    const nl = content.lastIndexOf("\n", end);
+    if (end < content.length && nl > i + 200) end = nl;
+    blocks.push(content.slice(i, end));
+    i = end;
+  }
+  const scored = blocks
+    .map((b, idx) => ({ idx, s: toks.reduce((a, t) => a + (b.toLowerCase().includes(t) ? 1 : 0), 0) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || a.idx - b.idx);
+  const pick = new Set<number>();
+  let used = 0;
+  for (const { idx } of scored) {
+    // The best block and the one after it, so a clause cut at a block edge stays whole.
+    for (const j of [idx, idx + 1]) {
+      if (j >= blocks.length || pick.has(j) || used + blocks[j].length > VIEW_CHARS) continue;
+      pick.add(j);
+      used += blocks[j].length;
+    }
+    if (used > VIEW_CHARS - 300) break;
+  }
+  if (pick.size === 0) return { ...start, note: `Nothing on this ${content.length}-character page matched the focus; showing the start.` };
+  let text = "";
+  let last = -2;
+  for (const j of [...pick].sort((a, b) => a - b)) {
+    if (text && j !== last + 1) text += "\n[...]\n";
+    text += blocks[j];
+    last = j;
+  }
+  return { text, note: `Page has ${content.length} characters; showing the parts that match the focus. [...] marks text left out.` };
+}
+
 export const BUILTIN_SCHEMAS: Record<"search_official" | "fetch_official" | "finish", ToolSchema> = {
   search_official: {
     type: "function",
@@ -177,7 +235,10 @@ export class AgentSession {
     }
     if (this.tavilyCalls >= limits().maxTavilyCallsPerRun) throw new Error("fetch budget for this run is used up");
     this.tavilyCalls++;
-    const { doc, credits } = await this.search.extract(url, focus);
+    // Always the full page (one cached extract per URL); `focus` only picks which
+    // parts the model sees, see pageView().
+    void focus;
+    const { doc, credits } = await this.search.extract(url);
     this.usage.tavilyCredits += credits;
     if (doc) this.docs.add(doc);
     this.emit({ kind: "tool", name: "fetch_official", detail: doc ? `${doc.title.slice(0, 60)} (${doc.content.length} chars)` : `${url.slice(0, 80)} -> no text` });
@@ -228,7 +289,7 @@ export class AgentSession {
         if (builtin && name === "fetch_official") {
           const doc = await this.fetchOfficial(String(a.url ?? ""), a.focus ? String(a.focus).slice(0, 200) : undefined);
           if (!doc) throw new Error("No text could be retrieved from this URL.");
-          return JSON.stringify({ url: doc.url, title: doc.title, text: doc.content.slice(0, 4000) });
+          return JSON.stringify({ url: doc.url, title: doc.title, ...pageView(doc.content, a.focus ? String(a.focus) : "") });
         }
         const tool = o.tools.find((t) => t.schema.function.name === name);
         if (!tool) throw new Error(`unknown tool ${name}`);

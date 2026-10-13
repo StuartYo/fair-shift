@@ -15,3 +15,8 @@ _parked/
 eval/results/mock-*
 .vitest/
 .claude/
+
+.vercel
+
+# Tavily disk cache for eval / feasibility runs
+.cache/

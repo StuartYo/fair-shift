@@ -4,7 +4,7 @@ import type { ChatProvider } from "../llm/provider";
 import type { SearchProvider } from "../search/provider";
 import type { TraceStep } from "../types";
 import { buildTask, fillGaps, RULES_SYSTEM_PROMPT, ruleTools, type RuleStore } from "./agent";
-import { specsFor, TW_HOLIDAY_ACT } from "./catalog";
+import { specsFor, twHolidayActUrl } from "./catalog";
 import { compute, resolveShifts } from "./compute";
 import { allowedNumbers, hasCJK, numbersOutsideSet, templateExplanation } from "./explain";
 import { crossCheck, normaliseModelShifts, parsePayslipRules, parseScheduleRules, type ModelShift, type RawShift } from "./parse";
@@ -89,7 +89,7 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
     const missingSeeds = specsFor(j, nyJob)
       .filter((s) => !store.rules.some((r) => r.key === s.key))
       .flatMap((s) => s.seedUrls);
-    if (j === "TW") missingSeeds.push(TW_HOLIDAY_ACT);
+    if (j === "TW") missingSeeds.push(twHolidayActUrl(dates));
     for (const url of [...new Set(missingSeeds)]) {
       if (session.docs.has(url)) continue;
       try {

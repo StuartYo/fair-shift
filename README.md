@@ -21,7 +21,7 @@ Built for the Nebius x NVIDIA Global AI Hackathon (track: Best Apps and Agents; 
 |---|---|---|
 | 1. Redact | code | Names, ID numbers, phones, emails, account numbers are removed before any API call. |
 | 2. Parse | **Nemotron 3 Nano** + code | The model turns messy text (`10/7(三) 下午5點到10點`) into shifts; a rule-based parser cross-checks it; code computes hours. |
-| 3. Find rules | **Nemotron 3 Super** with tools | `fetch_official` / `search_official` (Tavily, official domains only), then `record_rule` / `record_holiday`. Wrong quotes or values are rejected with a reason and the model retries. |
+| 3. Find rules | **Nemotron 3 Super** with tools | `fetch_official` / `search_official` (Tavily, official domains only), then `record_rule` / `record_holiday`. Long pages (a whole law, a 40-page wage order) show the model only the parts matching its `focus`, verbatim. Wrong quotes or values are rejected with a reason and the model retries. |
 | 4. Fill gaps | code | If the agent missed a rule, code reads it from the retrieved official text through the same checks. Nothing is filled from memory. |
 | 5. Compute | code | Expected pay per shift and segment, minimum wage top-up, premiums, tip credit, spread of hours, shortfall. |
 | 6. Explain | **Nemotron 3 Ultra** | Plain-language explanation and employer message. Rejected if it uses any number not in the calculation; a code template is used instead. |
@@ -50,7 +50,10 @@ Only statutory holiday dates are listed. The bridge and substitute days in the D
 
 ### Official sources (seed list)
 
-Read on 2026-10-13 unless marked.
+Read on 2026-10-13 unless marked. On 2026-10-14 every seed was retrieved with Tavily extract and checked by the verifier (`npm run probe:sources`, results in `eval/results/sources-*.md`). Tavily gets only the page frame from law.moj.gov.tw (no article text, basic or advanced extract), so the app fetches the Labor Standards Act and its Enforcement Rules from the Ministry of Labor's own law database (laws.mol.gov.tw), and the holiday act from the DGPA calendar pages, which quote Art. 3 to 9 verbatim. The law.moj.gov.tw links below are for people.
+
+- Labor Standards Act, full text, MOL law database (app seed for Art. 24, 39, 40; read 2026-10-14): https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014930
+- LSA Enforcement Rules, full text, MOL law database (app seed for Art. 20-1; read 2026-10-14): https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014931
 
 - Taiwan MOL, rate history: https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/
 - Taiwan MOL, 2027 decision (2026-09-24): https://www.mol.gov.tw/1607/1632/1633/99195/post
@@ -60,7 +63,7 @@ Read on 2026-10-13 unless marked.
 - MOL, hourly workers: https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/
 - MOL, holiday pay: https://www.mol.gov.tw/1607/28162/28166/28180/81521/81533/
 - MOL, National Day 2026 on a Saturday, worked example (2026-10-07): https://www.mol.gov.tw/1607/1632/1633/99440/post
-- 紀念日及節日實施條例: https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095
+- 紀念日及節日實施條例: https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095 (the app quotes it from the DGPA calendar page of the shift year)
 - DGPA government office calendar 2026 (115年, published 2025-06-13; read 2026-10-14): https://www.dgpa.gov.tw/information?uid=30&pid=12573
 - DGPA government office calendar 2027 (116年, published 2026-05-21; read 2026-10-14): https://www.dgpa.gov.tw/information?uid=30&pid=12982
 - NYS DOL minimum wage: https://dol.ny.gov/minimum-wage-0
@@ -84,7 +87,7 @@ Override with `NEMOTRON_NANO_MODEL`, `NEMOTRON_SUPER_MODEL`, `NEMOTRON_ULTRA_MOD
 
 `npm run eval` runs every synthetic case through Fair Shift and through the pure-model baseline: the same Nemotron 3 Super, given today's date and the same schedule and payslip text, one prompt, no tools, no retrieval, no code math. Cited URLs from the baseline are fetched and checked for the minimum wage it used. Results go to `eval/results/<mode>-<time>.json` and `.md`.
 
-Latest run: **demo mode** (no API keys yet). The baseline column fills in on the first live run.
+Latest run: **scripted model + live Tavily retrieval** (2026-10-14, `eval/results/tavily-mockmodel-*.md`): 13/13 exact, all rule values read from pages retrieved during the run; 100 of 104 rule records went through the agent tools, the other 4 (the NY tip credit rows, which sit in a 10,000-character section of the wage order) filled by code from the same retrieved text. About 3 Tavily credits for all 13 cases with nothing cached. The baseline column fills in on the first live run with `NEBIUS_API_KEY`.
 
 | 13 synthetic cases | Fair Shift (agent + Tavily + code math) | Same Nemotron model alone (no tools) |
 |---|---|---|
@@ -102,13 +105,14 @@ Node 20.9 or newer.
 
 ```bash
 npm install
-npm test             # 89 unit and pipeline tests, never touch the network
+npm test             # 96 unit and pipeline tests, never touch the network
 npm run eval         # Fair Shift vs pure-model baseline (baseline needs keys)
 npm run feasibility  # day-one go / no-go checks (needs keys)
+npm run probe:sources  # Tavily only: find, extract and verify every official source
 npm run dev          # http://localhost:3000
 ```
 
-Keys come only from the environment: `NEBIUS_API_KEY` and `TAVILY_API_KEY`. On Windows set them as user environment variables and open a new terminal. With either key missing the app runs in **demo mode**: a scripted agent drives the same tools and checks over text recorded from the official pages (`fixtures/official-pages.json`), and the page says so. `APP_FORCE_MOCK=1` forces demo mode. All settings are in `.env.example`.
+Keys come only from the environment: `NEBIUS_API_KEY` and `TAVILY_API_KEY`. On Windows set them as user environment variables and open a new terminal. With either key missing the app runs in **demo mode**: a scripted agent drives the same tools and checks over text recorded from the official pages (`fixtures/official-pages.json`), and the page says so. `APP_FORCE_MOCK=1` forces demo mode. `APP_LIVE_SEARCH=1` with only `TAVILY_API_KEY` keeps the scripted model but retrieves the official pages live with Tavily (used to test retrieval before model credits exist). `npm run eval` and `probe:sources` cache Tavily results in `.cache/tavily` (gitignored); `TAVILY_CACHE_DIR=` (empty) turns that off. All settings are in `.env.example`.
 
 ## Public demo caps
 
@@ -135,6 +139,8 @@ Counters are in memory per server instance, so the real ceiling is caps x warm i
 5. Nemotron Nano parses at least 4 of 5 synthetic Chinese schedules exactly.
 
 Then by hand (about 1 hour): `npm run eval` for the live system vs baseline numbers, and one check of each sample in the UI, watching how many rules the Super agent records itself versus code fallback. Also check that Tavily extract of `https://forms.labor.ny.gov/WP/CR146.pdf` returns the tip credit rows (it is a 40-page PDF). Expected cost: about 6 to 40 Tavily credits and under US$0.50 of Nemotron.
+
+**Tavily half, done 2026-10-14** (`npm run probe:sources`, `eval/results/sources-*.md`): MOL rate history (196) and the 2027 decision (205, pending) extract with the numbers verbatim and pass the verifier; NYS DOL page, P700 and both wage order PDFs (CR146 tip credit rows, tipped overtime, spread of hours; CR142) all pass. law.moj.gov.tw fails (page frame only), so the Labor Standards Act and Enforcement Rules now come from laws.mol.gov.tw (all 7 Taiwan multipliers and the 40-hour week pass) and the holiday act from the DGPA calendar pages (all fixed-date holidays plus Mid-Autumn 2026 and Lunar New Year 2027 pass). laws.mol.gov.tw sometimes times out on basic extract, so a failed extract is retried once with advanced extract. The DGPA calendar dates themselves are in xlsx/pdf attachments that Tavily could not fetch; they stay a table in code.
 
 Go / no-go: if Tavily cannot retrieve the MOL rate pages, or Nano gets fewer than half the schedules right, fall back to the backup topic.
 

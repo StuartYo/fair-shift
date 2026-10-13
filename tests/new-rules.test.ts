@@ -17,8 +17,8 @@ const docs = new DocStore();
 for (const d of (fixtures as { docs: { url: string; title: string; content: string }[] }).docs)
   docs.add({ ...d, via: "fixture_extract", retrievedAt: "2026-10-14" });
 
-const RULES_20_1 = "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030002&flno=20-1";
-const ACT = "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095";
+const RULES_20_1 = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014931";
+const ACT = "https://www.dgpa.gov.tw/information?uid=30&pid=12982";
 const CR146 = "https://forms.labor.ny.gov/WP/CR146.pdf";
 const CR142 = "https://forms.labor.ny.gov/WP/CR142.pdf";
 
