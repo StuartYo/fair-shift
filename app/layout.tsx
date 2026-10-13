@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agent core",
-  description: "Nemotron on Nebius Token Factory with Tavily retrieval from official sources.",
+  title: "Fair Shift",
+  description: "Check an hourly payslip against official wage rules retrieved live. Nemotron on Nebius Token Factory with Tavily.",
 };
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

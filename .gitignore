@@ -10,3 +10,8 @@ next-env.d.ts
 !.env.example
 # Domain-specific work parked while the topic is decided. Not committed.
 _parked/
+
+# Demo-mode eval runs (live runs are committed on purpose)
+eval/results/mock-*
+.vitest/
+.claude/

@@ -219,7 +219,7 @@ export function compute(input: {
     const premiumKeys = [...new Set(lines.filter((l) => l.multiplier > 1).flatMap((l) => l.ruleKeys.filter((k) => !k.includes("min_wage"))))];
     problems.push({
       kind: "unpaid_premium",
-      message: `Premium pay due for overtime, rest day or holiday hours: ${round(premiums, currency)}.`,
+      message: "Premium pay is due for overtime, rest day or holiday hours.",
       amount: round(premiums, currency),
       ruleKeys: premiumKeys,
     });
