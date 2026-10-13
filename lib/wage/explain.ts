@@ -1,52 +1,253 @@
-import type { Computation, RuleRecord, Shift } from "./types";
+import { specByKey } from "./catalog";
+import type { Computation, PayLine, RuleKey, RuleRecord, Shift } from "./types";
 
-// Explanation and a message to the employer. The model may write these in live
-// mode, but every number it uses must already exist in the computation; if not,
-// the code template is used instead.
+// Plain-language reasons, the explanation and the message to the employer.
+// The model may write the explanation in live mode, but every number it uses
+// must already exist in the computation; if not, the code template is used.
+// The employer message is always this template, so it always cites the
+// article numbers.
 
 const money = (n: number, c: "TWD" | "USD") => (c === "TWD" ? `NT$${Math.round(n).toLocaleString("en-US")}` : `$${n.toFixed(2)}`);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const hrs = (n: number) => String(Math.round(n * 100) / 100);
 
 export function hasCJK(s: string): boolean {
   return /[㐀-鿿]/.test(s);
 }
 
-export function templateExplanation(c: Computation, shifts: Shift[], zh: boolean): { text: string; messageToEmployer: string } {
+// Common characters that only exist in simplified Chinese. Not complete, but a
+// model that slips into simplified Chinese uses several of these at once.
+const SIMPLIFIED = /[们这为说时实发际资应该过对国庆钟边计费让总单号开关业务员证书讯议论记读写问题获从个车东么见长门马鸟鱼龙给额补双劳动节当规则历条]/;
+
+/** True if the text has characters used only in simplified Chinese. */
+export function hasSimplified(s: string): boolean {
+  return SIMPLIFIED.test(s);
+}
+
+/** 2026-10-10 -> "10/10" (zh) or "Oct 10" (en). */
+export function shortDate(d: string, zh: boolean): string {
+  const m = Number(d.slice(5, 7));
+  const day = Number(d.slice(8, 10));
+  return zh ? `${m}/${day}` : `${MONTHS[m - 1]} ${day}`;
+}
+
+function dateList(dates: string[], zh: boolean): string {
+  const u = [...new Set(dates)].sort().map((d) => shortDate(d, zh));
+  return zh ? u.join("、") : u.join(", ");
+}
+
+export interface Reason {
+  kind: "holiday" | "day_off" | "rest_day" | "weekly_ot" | "daily_ot" | "ny_tipped_ot" | "ny_ot" | "spread" | "min_wage" | "tip_makeup" | "unpaid_hours";
+  en: string;
+  zh: string;
+  /** Where the rule is written. */
+  cite: { en: string; zh: string };
+  amount?: number;
+  hours?: number;
+  dates: string[];
+}
+
+interface Group {
+  kind: Reason["kind"];
+  keys: RuleKey[];
+}
+
+// A pay line belongs to the first group that lists one of its rules.
+const GROUPS: Group[] = [
+  { kind: "holiday", keys: ["tw.holiday"] },
+  { kind: "day_off", keys: ["tw.day_off"] },
+  { kind: "rest_day", keys: ["tw.rest_first2", "tw.rest_after2"] },
+  { kind: "weekly_ot", keys: ["tw.weekly_hours"] },
+  { kind: "daily_ot", keys: ["tw.ot_first2", "tw.ot_next2"] },
+  { kind: "ny_tipped_ot", keys: ["ny.ot_tipped"] },
+  { kind: "ny_ot", keys: ["ny.ot_weekly"] },
+  { kind: "spread", keys: ["ny.spread_hosp", "ny.spread_misc"] },
+];
+
+/** The part of a line above straight time, i.e. what the special rule adds. */
+export function lineExtra(l: PayLine): number {
+  if (l.label.startsWith("Spread") || l.label.startsWith("Tips plus cash wage")) return l.amount;
+  return l.amount - l.hours * (l.baseRate - (l.deduction ?? 0));
+}
+
+/**
+ * Why the expected pay is what it is, as specific facts: which dates, how many
+ * hours, which rule and article, how much it adds. Only reasons that occurred
+ * in this check are listed.
+ */
+export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): Reason[] {
+  const cur = c.currency;
+  const out: Reason[] = [];
+  const buckets = new Map<Reason["kind"], { amount: number; hours: number; dates: string[]; keys: Set<RuleKey> }>();
+  for (const l of c.lines) {
+    if (l.label.startsWith("Tips plus cash wage")) continue;
+    const extra = lineExtra(l);
+    if (extra <= 0.005) continue;
+    const g = GROUPS.find((x) => x.keys.some((k) => l.ruleKeys.includes(k)));
+    if (!g) continue;
+    const b = buckets.get(g.kind) ?? { amount: 0, hours: 0, dates: [], keys: new Set<RuleKey>() };
+    b.amount += extra;
+    b.hours += l.label.startsWith("Spread") ? 0 : l.hours;
+    b.dates.push(l.date);
+    l.ruleKeys.forEach((k) => b.keys.add(k));
+    buckets.set(g.kind, b);
+  }
+  const cite = (...keys: RuleKey[]) => {
+    const specs = keys.map((k) => specByKey(k)).filter((x): x is NonNullable<typeof x> => !!x);
+    return { en: [...new Set(specs.map((s) => s.cite.en))].join("; "), zh: [...new Set(specs.map((s) => s.cite.zh))].join("、") };
+  };
+  for (const g of GROUPS) {
+    const b = buckets.get(g.kind);
+    if (!b) continue;
+    const h = hrs(b.hours);
+    const dz = dateList(b.dates, true);
+    const de = dateList(b.dates, false);
+    const amt = money(b.amount, cur);
+    const base = { kind: g.kind, amount: Math.round(b.amount * 100) / 100, hours: b.hours, dates: [...new Set(b.dates)] };
+    if (g.kind === "holiday") {
+      const names = [...new Set(shifts.filter((s) => s.dayType === "holiday" && b.dates.includes(s.date)).map((s) => s.holidayName).filter(Boolean))];
+      out.push({
+        ...base,
+        zh: `${dz}（${names.join("、") || "國定假日"}）出勤 ${h} 小時：國定假日出勤，工資應加倍發給，這部分加給 ${amt}`,
+        en: `${de} (${names.join(", ") || "national holiday"}), ${h} hours: work on a national holiday is paid double, which adds ${amt}`,
+        cite: cite("tw.holiday"),
+      });
+    } else if (g.kind === "day_off") {
+      out.push({
+        ...base,
+        zh: `${dz} 例假出勤 ${h} 小時：工資應加倍發給，這部分加給 ${amt}`,
+        en: `${de}, regular day off, ${h} hours: paid double, which adds ${amt}`,
+        cite: cite("tw.day_off"),
+      });
+    } else if (g.kind === "rest_day") {
+      out.push({
+        ...base,
+        zh: `${dz} 休息日出勤 ${h} 小時：前 2 小時另加給一又三分之一，之後另加給一又三分之二，這部分加給 ${amt}`,
+        en: `${de}, rest day, ${h} hours: the first 2 hours are paid at 1 and 1/3 times, later hours at 1 and 2/3 times, which adds ${amt}`,
+        cite: cite("tw.rest_first2"),
+      });
+    } else if (g.kind === "weekly_ot") {
+      out.push({
+        ...base,
+        zh: `這週總工時超過 40 小時，超過的 ${h} 小時（${dz}）算延長工時：前 2 小時加給三分之一，之後加給三分之二，這部分加給 ${amt}`,
+        en: `Hours over 40 in the week: ${h} hours (${de}) are overtime, paid plus 1/3 for the first 2 hours of the day, then plus 2/3, which adds ${amt}`,
+        cite: cite("tw.weekly_hours", "tw.ot_first2"),
+      });
+    } else if (g.kind === "daily_ot") {
+      out.push({
+        ...base,
+        zh: `${dz} 一天超過 8 小時，超過的 ${h} 小時算延長工時：前 2 小時加給三分之一，之後加給三分之二，這部分加給 ${amt}`,
+        en: `${de}: ${h} hours past 8 in a day are overtime, paid plus 1/3 for the first 2 hours, then plus 2/3, which adds ${amt}`,
+        cite: cite("tw.ot_first2"),
+      });
+    } else if (g.kind === "ny_tipped_ot") {
+      out.push({
+        ...base,
+        zh: `本週超過 40 小時的 ${h} 小時：小費員工的加班費是「完整最低工資的 1.5 倍再扣小費抵減」，這部分加給 ${amt}`,
+        en: `${h} hours over 40 in the week: tipped overtime is 1.5 times the full minimum wage minus the tip credit, not 1.5 times the cash wage, which adds ${amt}`,
+        cite: cite("ny.ot_tipped"),
+      });
+    } else if (g.kind === "ny_ot") {
+      out.push({
+        ...base,
+        zh: `本週超過 40 小時的 ${h} 小時要付 1.5 倍，這部分加給 ${amt}`,
+        en: `${h} hours over 40 in the week are paid at time and a half, which adds ${amt}`,
+        cite: cite("ny.ot_weekly"),
+      });
+    } else if (g.kind === "spread") {
+      const key = [...b.keys].find((k) => k.startsWith("ny.spread")) ?? "ny.spread_hosp";
+      out.push({
+        ...base,
+        zh: `${dz} 從第一個班開始到最後一個班結束超過 10 小時：要多付 1 小時最低工資，共 ${amt}`,
+        en: `${de}: the workday spanned more than 10 hours from first start to last end, so one extra hour at the minimum wage is owed: ${amt}`,
+        cite: cite(key),
+      });
+    }
+  }
+  const tipLine = c.lines.find((l) => l.label.startsWith("Tips plus cash wage"));
+  if (tipLine)
+    out.push({
+      kind: "tip_makeup",
+      amount: Math.round(tipLine.amount * 100) / 100,
+      dates: [],
+      zh: `小費加現金工資沒有達到最低工資，雇主要補足差額 ${money(tipLine.amount, cur)}`,
+      en: `Tips plus the cash wage came to less than the minimum wage for the hours worked, so the employer must make up ${money(tipLine.amount, cur)}`,
+      cite: cite("ny.tip_credit"),
+    });
+  const below = c.problems.find((p) => p.kind === "below_min_wage" && !tipLine);
+  if (below?.amount) {
+    const mwLine = c.lines.find((l) => l.ruleKeys.some((k) => k.endsWith("min_wage_hourly")));
+    const mwRule = rules.find((r) => r.key.endsWith("min_wage_hourly") && mwLine && r.value === mwLine.baseRate);
+    const mw = mwLine ? money(mwLine.baseRate, cur) : "";
+    out.push({
+      kind: "min_wage",
+      amount: below.amount,
+      dates: [],
+      zh: `薪資單上的時薪低於最低工資 ${mw}${mwRule?.effectiveFrom ? `（${mwRule.effectiveFrom} 起）` : ""}，補到最低工資要多 ${money(below.amount, cur)}`,
+      en: `The hourly rate on the payslip is below the minimum wage of ${mw}${mwRule?.effectiveFrom ? ` (from ${mwRule.effectiveFrom})` : ""}; raising it adds ${money(below.amount, cur)}`,
+      cite: cite(cur === "TWD" ? "tw.min_wage_hourly" : "ny.min_wage_hourly"),
+    });
+  }
+  const unpaid = c.problems.find((p) => p.kind === "unpaid_hours");
+  if (unpaid)
+    out.push({
+      kind: "unpaid_hours",
+      amount: unpaid.amount,
+      dates: [],
+      zh: unpaid.messageZh ?? unpaid.message,
+      en: unpaid.message.replace(/\.$/, ""),
+      cite: { en: "your schedule and payslip", zh: "你的班表與薪資單" },
+    });
+  return out;
+}
+
+export function templateExplanation(c: Computation, shifts: Shift[], rules: RuleRecord[] = []): { text: string; textZh: string; messageToEmployer: string } {
   const cur = c.currency;
   const exp = money(c.expectedTotal, cur);
   const paid = c.paidTotal !== undefined ? money(c.paidTotal, cur) : null;
   const gap = c.shortfall !== undefined && c.shortfall > 0 ? money(c.shortfall, cur) : null;
-  const special = shifts.filter((s) => s.dayType !== "workday");
-  const text = [
-    `You worked ${c.workedHours} hours across ${shifts.length} shift(s). Based on the official rules retrieved, the expected pay is ${exp}.`,
-    paid ? `The payslip shows ${paid}.` : "No total was found on the payslip.",
-    gap ? `That is ${gap} less than expected.` : paid ? "No shortfall was found." : "",
-    c.components.premiums > 0 ? `Extra pay for overtime, rest day, holiday or long-day (spread of hours) work accounts for ${money(c.components.premiums, cur)} of the expected total.` : "",
-    c.components.minWageTopUp > 0 ? `Raising the stated rate to the minimum wage adds ${money(c.components.minWageTopUp, cur)}.` : "",
-    special.length ? `Special days: ${special.map((s) => `${s.date} (${s.dayType.replace(/_/g, " ")}${s.holidayName ? `, ${s.holidayName}` : ""})`).join(", ")}.` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const rs = reasons(c, shifts, rules);
+  const tw = cur === "TWD";
 
-  const messageToEmployer = zh
-    ? [
-        "您好，",
-        `我核對了這期的班表與薪資單：總工時 ${c.workedHours} 小時，依勞動部公告與勞動基準法計算，應領 ${exp}${paid ? `，實領 ${paid}` : ""}${gap ? `，差額 ${gap}` : ""}。`,
-        special.length
-          ? `其中 ${special.map((s) => s.date).join("、")} 屬於休息日或國定假日出勤，依法應另計加給。`
-          : c.components.premiums > 0
-            ? "其中有超過每日 8 小時或每週 40 小時的工時，依法屬於延長工時，應另計加給。"
-            : "",
-        "附上計算明細與官方條文連結，想請您協助確認，若有我算錯的地方也請告訴我。謝謝！",
-      ]
-        .filter(Boolean)
-        .join("\n")
-    : [
-        "Hi,",
-        `I checked my schedule against my payslip for this period. I worked ${c.workedHours} hours. Using the state's published rules, I expected ${exp}${paid ? ` and received ${paid}` : ""}${gap ? `, a difference of ${gap}` : ""}.`,
-        "I have attached the line-by-line calculation with links to the official rules. Could you take a look? If I have missed something, please let me know.",
-        "Thank you.",
-      ].join("\n");
-  return { text, messageToEmployer };
+  const text = [
+    `You worked ${c.workedHours} hours in ${shifts.length} shift(s). Based on the official rules retrieved, the expected pay is ${exp}.`,
+    paid ? (gap ? `The payslip shows ${paid}, so ${gap} is missing.` : `The payslip shows ${paid}. No shortfall was found.`) : "No total was found on the payslip.",
+    rs.length ? `Why: ${rs.map((r) => `${r.en} (${r.cite.en})`).join(". ")}.` : "No overtime, holiday or minimum wage rule changed the amount.",
+  ].join(" ");
+  const textZh = [
+    `你這期上了 ${shifts.length} 個班，共 ${c.workedHours} 小時。依這次取得的官方規定，應領 ${exp}。`,
+    paid ? (gap ? `薪資單是 ${paid}，少了 ${gap}。` : `薪資單是 ${paid}，沒有短少。`) : "薪資單上找不到實領金額。",
+    rs.length ? `原因：${rs.map((r) => `${r.zh}（${r.cite.zh}）`).join("；")}。` : "這期沒有加班、國定假日或最低工資的問題。",
+  ].join("");
+
+  const dates = shifts.map((s) => s.date).sort();
+  const span = dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ${tw ? "至" : "to"} ${dates.at(-1)}`) : "";
+  let messageToEmployer: string;
+  if (!gap) {
+    messageToEmployer = tw ? "這次核對沒有發現短少，不需要寄信給雇主。" : "No shortfall was found, so there is nothing to ask your employer about.";
+  } else if (tw) {
+    messageToEmployer = [
+      "您好，",
+      `我核對了 ${span} 的班表和薪資單：總工時 ${c.workedHours} 小時，依勞動部公告與勞動基準法計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
+      rs.length ? "差額主要來自：" : "",
+      ...rs.map((r, i) => `${i + 1}. ${r.zh}（${r.cite.zh}）。`),
+      "我附上一頁式計算報告，裡面有每一天的計算方式和官方條文連結。想請您幫忙確認，如果是我算錯了，也請告訴我。謝謝！",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  } else {
+    messageToEmployer = [
+      "Hi,",
+      `I checked my schedule against my payslip for ${span}. I worked ${c.workedHours} hours. Using the state's published rules, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
+      rs.length ? "The difference comes from:" : "",
+      ...rs.map((r, i) => `${i + 1}. ${r.en} (${r.cite.en}).`),
+      "I have attached a one-page report with the calculation for each day and links to the official rules. Could you take a look? If I have missed something, please let me know.",
+      "Thank you.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  return { text, textZh, messageToEmployer };
 }
 
 /** Every number a model may mention. */
@@ -63,6 +264,11 @@ export function allowedNumbers(c: Computation, shifts: Shift[], rules: RuleRecor
   for (const p of c.problems) if (p.amount !== undefined) add(p.amount);
   for (const l of c.lines) [l.hours, l.baseRate, l.amount, l.deduction ?? 0].forEach(add);
   for (const r of rules) add(r.value);
+  for (const r of reasons(c, shifts, rules)) {
+    if (r.amount !== undefined) add(r.amount);
+    if (r.hours !== undefined) add(r.hours);
+    for (const m of (r.cite.en + " " + r.cite.zh).matchAll(/\d+(?:\.\d+)?/g)) set.add(m[0]);
+  }
   for (const s of shifts) {
     for (const part of [...s.date.split("-"), ...s.start.split(":"), ...s.end.split(":")]) {
       set.add(part);

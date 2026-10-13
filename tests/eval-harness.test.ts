@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runBaseline, scoreBaseline, baselineUser } from "../eval/baseline";
 import { EVAL_CASES } from "../eval/cases";
-import { caseTable, evalMarkdown, headlineTable, type EvalRow, type EvalSummary } from "../eval/report";
+import { caseTable, evalMarkdown, groupLine, headlineTable, recordedLine, type EvalRow, type EvalSummary } from "../eval/report";
 import fixtures from "../fixtures/official-pages.json";
 import { MockProvider } from "../lib/llm/mock";
 import { FixtureSearchProvider, type FixtureSet } from "../lib/search/fixture";
@@ -61,21 +61,28 @@ describe("comparison tables", () => {
     ...over,
   });
 
-  it("marks the baseline as pending without keys, never as a number", () => {
+  it("marks the other columns as not run without keys, never as a number", () => {
     const t = headlineTable(summary("mock"), [row(), row()]);
-    expect(t).toContain("| Expected pay exactly right | 2/2 | pending (needs API keys) |");
+    expect(t).toContain("| Expected pay exactly right | 2/2 | not run | not run |");
     expect(t).toContain("n/a (demo mode)");
-    expect(caseTable([row()])).toContain("| tw-holiday-unpaid | NT$5,488 | NT$5,488 (correct) | pending | pending | 196 |");
+    expect(caseTable([row()])).toContain("| tw-holiday-unpaid | main | NT$5,488 | NT$5,488 (correct) | 9 / 0 | not run | not run | not run | 196 |");
   });
 
-  it("fills the baseline column in live mode", () => {
+  it("fills the baseline and quote-checks-off columns in live mode", () => {
     const base = { model: "nvidia/nemotron-3-super-120b-a12b", expectedTotal: 4312, shortfall: 0, minWageUsed: 190, amountCorrect: false, shortfallCorrect: false, minWageCorrect: false, sourcesGiven: 2, sourcesVerified: 1, costUsd: 0.0004 };
-    const rows = [row({ baseline: base }), row({ baseline: { ...base, expectedTotal: 5488, amountCorrect: true, minWageUsed: 196, minWageCorrect: true } })];
+    const nv = { expectedTotal: 4312, correct: false, costUsd: 0.008, recorded: 5 };
+    const rows = [
+      row({ baseline: base, noVerify: nv }),
+      row({ baseline: { ...base, expectedTotal: 5488, amountCorrect: true, minWageUsed: 196, minWageCorrect: true }, noVerify: { ...nv, expectedTotal: 5488, correct: true }, codeFallback: 2, agentRecorded: 7 }),
+    ];
     const t = headlineTable(summary("live"), rows);
-    expect(t).toContain("| Expected pay exactly right | 2/2 | 1/2 |");
-    expect(t).toContain("| Used the minimum wage in force on the shift dates | 2/2 | 1/2 |");
+    expect(t).toContain("| Expected pay exactly right | 2/2 | 1/2 | 1/2 |");
+    expect(t).toContain("| Used the minimum wage in force on the shift dates | 2/2 | n/a | 1/2 |");
     expect(t).toContain("2 of 4 (50%)");
-    expect(t).toContain("US$0.0100 | US$0.0004 |");
+    expect(t).toContain("US$0.0100 | US$0.0080 | US$0.0004 |");
+    expect(recordedLine(rows)).toContain("16 made by the agent through its tools, 2 filled by code fallback");
+    expect(recordedLine(rows)).toContain("In 1 of 2 cases the agent recorded everything itself.");
+    expect(groupLine([row(), row({ group: "heldout", fairShiftCorrect: false })])).toBe("main 1/1, held-out 0/1");
     expect(evalMarkdown(summary("live"), rows)).toContain("## Per case");
   });
 });

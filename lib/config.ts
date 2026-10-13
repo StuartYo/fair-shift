@@ -56,10 +56,10 @@ function num(name: string, fallback: number): number {
 export function limits() {
   return {
     maxInputChars: num("APP_MAX_INPUT_CHARS", 4000),
-    maxAgentSteps: num("APP_MAX_AGENT_STEPS", 24),
-    maxToolCallsPerStep: num("APP_MAX_TOOL_CALLS_PER_STEP", 6),
+    maxAgentSteps: num("APP_MAX_AGENT_STEPS", 12),
+    maxToolCallsPerStep: num("APP_MAX_TOOL_CALLS_PER_STEP", 12),
     maxTavilyCallsPerRun: num("APP_MAX_TAVILY_CALLS", 12),
-    maxCompletionTokens: num("APP_MAX_COMPLETION_TOKENS", 1200),
+    maxCompletionTokens: num("APP_MAX_COMPLETION_TOKENS", 4000),
     perRunUsd: num("APP_PER_RUN_USD", 0.05),
     perIpPerHour: num("APP_PER_IP_PER_HOUR", 6),
     perIpPerDay: num("APP_PER_IP_PER_DAY", 20),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EVAL_CASES } from "../eval/cases";
+import { HELDOUT_CASES } from "../eval/heldout";
 import fixtures from "../fixtures/official-pages.json";
 import { MockProvider } from "../lib/llm/mock";
 import { FixtureSearchProvider, type FixtureSet } from "../lib/search/fixture";
@@ -11,7 +12,7 @@ import { runFairShift } from "../lib/wage/run";
 // rule used carries a verified citation.
 
 describe("eval cases through the full pipeline (demo mode)", () => {
-  for (const c of EVAL_CASES) {
+  for (const c of [...EVAL_CASES, ...HELDOUT_CASES]) {
     it(`${c.id}: ${c.title}`, async () => {
       const r = await runFairShift(c.input, {
         llm: new MockProvider(rulesMockScript()),
@@ -38,8 +39,9 @@ describe("eval cases through the full pipeline (demo mode)", () => {
         expect(rule.citations.length).toBeGreaterThan(0);
         expect(rule.citations.every((x) => x.verified)).toBe(true);
       }
-      // the demo agent records rules through the tools, not only via code fallback
-      expect(r.rules.some((x) => x.recordedBy === "agent")).toBe(true);
+      // the demo agent records every rule and holiday through the tools; code fallback is not needed
+      expect(r.recordedBy.fallbackRules + r.recordedBy.fallbackHolidays).toBe(0);
+      expect(r.parseError).toBeUndefined();
       expect(r.stoppedEarly).toBeUndefined();
     });
   }

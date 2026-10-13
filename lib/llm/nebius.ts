@@ -43,6 +43,7 @@ export class NebiusProvider implements ChatProvider {
           body.tool_choice = "auto";
         }
         if (opts.jsonMode) body.response_format = { type: "json_object" };
+        if (opts.reasoning === false) body.chat_template_kwargs = { enable_thinking: false };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const res: any = await this.client.chat.completions.create(body as never);
         const choice = res.choices?.[0];
@@ -60,6 +61,7 @@ export class NebiusProvider implements ChatProvider {
           model,
           promptTokens: res.usage?.prompt_tokens ?? 0,
           completionTokens: res.usage?.completion_tokens ?? 0,
+          finishReason: typeof choice.finish_reason === "string" ? choice.finish_reason : undefined,
         };
       } catch (err) {
         lastErr = err;

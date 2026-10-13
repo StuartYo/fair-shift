@@ -1,5 +1,7 @@
 import { NY_JOB_LABEL, NY_REGION_LABEL, specByKey } from "./catalog";
-import type { FairShiftReport, HolidayRecord, PayLine, RuleKey, RuleRecord } from "./types";
+import { reasons } from "./explain";
+import { citeOf, DISCLAIMER_ZH, lineLabel, lineRuleKeys, multiplierWords, ruleTitle, splitRules, type Lang } from "./i18n";
+import type { FairShiftReport, HolidayRecord, PayLine, RuleKey, RuleRecord, Shift } from "./types";
 
 // Plain formatting helpers shared by the UI and the Markdown export.
 
@@ -34,8 +36,9 @@ export function ruleValueText(r: RuleRecord, currency: "TWD" | "USD"): string {
   return spec?.kind === "amount" ? `${fmtMoney(r.value, currency, true)} per hour` : fmtMultiplier(r.value);
 }
 
-export function holidayLabel(h: HolidayRecord): string {
-  return h.date ?? h.monthDay;
+/** Holiday date with its year: the lunar date, or the shift date it fell on. */
+export function holidayLabel(h: HolidayRecord, shifts: Shift[] = []): string {
+  return h.date ?? shifts.find((s) => s.date.slice(5) === h.monthDay)?.date ?? h.monthDay;
 }
 
 // Plain reasons for the verdict, in priority order. A pay line belongs to the
@@ -66,36 +69,68 @@ export function whyLines(r: FairShiftReport): { text: string; amount?: number }[
   return out;
 }
 
-export function toMarkdown(r: FairShiftReport): string {
+/** Rate column in words: "double", or for a tipped line "time and a half minus $5.65". */
+export function lineRateWords(l: PayLine, currency: "TWD" | "USD", lang: Lang): string {
+  const m = multiplierWords(l.multiplier, lang);
+  if (!l.deduction) return m;
+  return lang === "zh" ? `${m}，扣小費抵減 ${fmtMoney(l.deduction, currency, true)}` : `${m} minus ${fmtMoney(l.deduction, currency, true)}`;
+}
+
+export function toMarkdown(r: FairShiftReport, lang: Lang = r.input.jurisdiction === "TW" ? "zh" : "en"): string {
   const c = r.computation;
   const cur = c.currency;
+  const zh = lang === "zh";
   const where =
     r.input.jurisdiction === "TW"
-      ? "Taiwan"
+      ? zh
+        ? "台灣"
+        : "Taiwan"
       : `New York (${NY_REGION_LABEL[r.input.nyRegion ?? "nyc"]}; ${NY_JOB_LABEL[r.input.nyJob ?? "general"]})`;
   const out: string[] = [];
-  out.push(`# Fair Shift pay check`, ``, `- Jurisdiction: ${where}`, `- Checked: ${r.createdAt}`, `- Mode: ${r.modeNote}`, ``);
-  out.push(`## Result`, ``, `| | Amount |`, `|---|---|`, `| Expected | ${fmtMoney(c.expectedTotal, cur)} |`);
-  if (c.paidTotal !== undefined) out.push(`| Paid | ${fmtMoney(c.paidTotal, cur)} |`);
-  if (c.shortfall !== undefined) out.push(`| Difference | ${fmtMoney(c.shortfall, cur)} |`);
-  out.push(``, `## Lines`, ``, `| Date | Item | Hours | Rate | Multiplier | Amount |`, `|---|---|---|---|---|---|`);
+  out.push(zh ? `# Fair Shift 薪資核對` : `# Fair Shift pay check`, ``, `- ${zh ? "地區" : "Jurisdiction"}: ${where}`, `- ${zh ? "核對時間" : "Checked"}: ${r.createdAt}`, `- ${zh ? "模式" : "Mode"}: ${r.modeNote}`, ``);
+  out.push(zh ? `## 結果` : `## Result`, ``, `| | ${zh ? "金額" : "Amount"} |`, `|---|---|`, `| ${zh ? "應領" : "Expected"} | ${fmtMoney(c.expectedTotal, cur)} |`);
+  if (c.paidTotal !== undefined) out.push(`| ${zh ? "實領" : "Paid"} | ${fmtMoney(c.paidTotal, cur)} |`);
+  if (c.shortfall !== undefined) out.push(`| ${zh ? "差額" : "Difference"} | ${fmtMoney(c.shortfall, cur)} |`);
+  if (r.premises.length) out.push(``, zh ? `前提：` : `Depends on:`, ...r.premises.map((p) => `- ${p[lang]}`));
+  const rs = reasons(c, r.shifts, r.rules);
+  if (rs.length) out.push(``, zh ? `## 原因` : `## Why`, ``, ...rs.map((x) => (zh ? `- ${x.zh}（${x.cite.zh}）` : `- ${x.en} (${x.cite.en})`)));
+  out.push(
+    ``,
+    zh ? `## 逐行計算` : `## Lines`,
+    ``,
+    zh ? `| 日期 | 項目 | 時數 | 時薪 | 算法 | 金額 | 依據 |` : `| Date | Item | Hours | Rate | Pay rule | Amount | Rule |`,
+    `|---|---|---|---|---|---|---|`,
+  );
   for (const l of c.lines)
-    out.push(`| ${l.date} | ${l.label} | ${l.hours} | ${fmtMoney(l.baseRate, cur, true)} | ${fmtLineRate(l, cur)} | ${fmtMoney(l.amount, cur, true)} |`);
-  out.push(``, `## Official rules used`, ``);
-  for (const rule of r.rules) {
-    const spec = specByKey(rule.key);
-    out.push(`### ${spec?.label ?? rule.key}: ${ruleValueText(rule, cur)}${rule.effectiveFrom ? `, from ${rule.effectiveFrom}` : ""}${rule.status === "pending_approval" ? " (pending approval)" : ""}`);
-    for (const ci of rule.citations) out.push(``, `> ${ci.quote}`, ``, `Source: [${ci.title}](${ci.url})`);
+    out.push(
+      `| ${l.date} | ${lineLabel(l, lang)} | ${l.hours} | ${fmtMoney(l.baseRate, cur, true)} | ${lineRateWords(l, cur, lang)} | ${fmtMoney(l.amount, cur, true)} | ${lineRuleKeys(l)
+        .map((k) => citeOf(k, lang))
+        .join("; ")} |`,
+    );
+  const { used } = splitRules(r);
+  out.push(``, zh ? `## 用到的官方規定` : `## Official rules used`, ``);
+  for (const rule of used) {
+    out.push(`### ${ruleTitle(rule.key, lang)}（${citeOf(rule.key, lang)}）：${ruleValueWords(rule, cur, lang)}${rule.effectiveFrom ? (zh ? `，${rule.effectiveFrom} 起` : `, from ${rule.effectiveFrom}`) : ""}${rule.status === "pending_approval" ? (zh ? "（尚待核定）" : " (pending approval)") : ""}`);
+    for (const ci of rule.citations) out.push(``, `> ${ci.quote}`, ``, `${zh ? "出處" : "Source"}: [${ci.title}](${ci.url})`);
     out.push(``);
   }
   for (const h of r.holidays) {
-    out.push(`### Holiday: ${h.name} (${holidayLabel(h)})`);
-    for (const ci of h.citations) out.push(``, `> ${ci.quote}`, ``, `Source: [${ci.title}](${ci.url})`);
-    if (h.dateSource) out.push(``, `Date: ${h.dateSource.note} Source: [${h.dateSource.title}](${h.dateSource.url})`);
+    out.push(`### ${zh ? "國定假日" : "Holiday"}: ${h.name} (${holidayLabel(h, r.shifts)})`);
+    for (const ci of h.citations) out.push(``, `> ${ci.quote}`, ``, `${zh ? "出處" : "Source"}: [${ci.title}](${ci.url})`);
+    if (h.dateSource) out.push(``, `${zh ? "日期" : "Date"}: ${h.dateSource.note} [${h.dateSource.title}](${h.dateSource.url})`);
     out.push(``);
   }
-  if (c.problems.length) out.push(`## Findings`, ``, ...c.problems.map((p) => `- ${p.message}`), ``);
-  if (c.assumptions.length) out.push(`## Assumptions`, ``, ...c.assumptions.map((a) => `- ${a}`), ``);
-  out.push(`## Message to employer`, ``, r.explanation.messageToEmployer, ``, `---`, r.disclaimer);
+  const as = zh ? c.assumptionsZh : c.assumptions;
+  if (as.length) out.push(zh ? `## 假設` : `## Assumptions`, ``, ...as.map((a) => `- ${a}`), ``);
+  out.push(zh ? `## 給雇主的訊息` : `## Message to employer`, ``, r.explanation.messageToEmployer, ``, `---`, zh ? DISCLAIMER_ZH : r.disclaimer);
   return out.join("\n");
+}
+
+/** Rule value in words: 每小時 196 元, 加倍, 40 小時. */
+export function ruleValueWords(r: RuleRecord, currency: "TWD" | "USD", lang: Lang): string {
+  const spec = specByKey(r.key);
+  if (spec?.kind === "hours_limit") return lang === "zh" ? `${r.value} 小時` : `${r.value} hours`;
+  if (r.key === "ny.tip_credit") return lang === "zh" ? `每小時最多 ${fmtMoney(r.value, currency, true)}` : `up to ${fmtMoney(r.value, currency, true)} per hour`;
+  if (spec?.kind === "amount") return lang === "zh" ? `每小時 ${fmtMoney(r.value, currency, true)}` : `${fmtMoney(r.value, currency, true)} per hour`;
+  return multiplierWords(r.value, lang);
 }

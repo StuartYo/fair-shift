@@ -87,11 +87,16 @@ export interface PayLine {
   amount: number;
   ruleKeys: RuleKey[];
   note?: string;
+  /** Traditional Chinese label and note (Taiwan lines). */
+  labelZh?: string;
+  noteZh?: string;
 }
 
 export interface Problem {
   kind: "below_min_wage" | "unpaid_premium" | "unpaid_hours" | "not_computed" | "missing_rule" | "check";
   message: string;
+  /** Traditional Chinese message (Taiwan). */
+  messageZh?: string;
   amount?: number;
   ruleKeys: RuleKey[];
 }
@@ -106,6 +111,8 @@ export interface Computation {
   components: { base: number; minWageTopUp: number; premiums: number };
   problems: Problem[];
   assumptions: string[];
+  /** Same assumptions in Traditional Chinese, same order (Taiwan). */
+  assumptionsZh: string[];
 }
 
 export interface CheckInput {
@@ -115,9 +122,13 @@ export interface CheckInput {
   nyJob?: NyJob;
   scheduleText: string;
   payslipText: string;
-  /** TW: weekday (0=Sun..6=Sat) your employer set as rest day / regular day off, if known. */
-  restDayWeekday?: number;
-  dayOffWeekday?: number;
+  /**
+   * TW: weekday (0=Sun..6=Sat) your employer set as rest day (休息日) / regular
+   * day off (例假). null = you said it is not fixed; undefined = not asked (API
+   * callers and eval cases). The UI always asks.
+   */
+  restDayWeekday?: number | null;
+  dayOffWeekday?: number | null;
   /** First day of the workweek (0=Sun). Default Monday. Used for weekly overtime in both places. */
   workweekStart?: number;
 }
@@ -130,18 +141,26 @@ export interface FairShiftReport {
   input: { jurisdiction: Jurisdiction; nyRegion?: NyRegion; nyJob?: NyJob };
   shifts: Shift[];
   payslip: Payslip;
-  parse: { source: "model" | "rules"; model?: string; crossCheck: string };
+  parse: { source: "model" | "rules"; model?: string; crossCheck: string; confidence: "high" | "low"; unread: string[] };
   rules: RuleRecord[];
   holidays: HolidayRecord[];
   computation: Computation;
-  explanation: { text: string; messageToEmployer: string; source: "model" | "template"; model?: string };
+  explanation: { text: string; textZh?: string; messageToEmployer: string; source: "model" | "template"; model?: string };
+  /** What the headline number depends on, shown right under it. */
+  premises: { en: string; zh: string }[];
+  /** Set when no shift could be read: the UI shows this instead of a result. */
+  parseError?: { en: string; zh: string; unread: string[] };
   trace: import("../types").TraceStep[];
   usage: import("../types").Usage;
   modelsUsed: string[];
   redactions: number;
   disclaimer: string;
   stoppedEarly?: string;
+  /** Who recorded the rules and holidays used: the agent, or code reading the retrieved text after the agent stopped. */
+  recordedBy: { agentRules: number; fallbackRules: number; agentHolidays: number; fallbackHolidays: number };
+  /** Eval only: rules recorded without checking the quotes. */
+  verification: "on" | "off";
 }
 
 export const DISCLAIMER =
-  "Fair Shift is a checking aid, not legal advice. It uses the official rules it retrieved and the hours you entered. Confirm with your local labor department (Taiwan: 1955 hotline or your city labor bureau; New York: NYS DOL 888-469-7365) before acting.";
+  "Fair Shift is a checking aid, not legal advice. It uses the official rules it retrieved and the hours you entered. Confirm with your local labor department (Taiwan: 1955 hotline or your city labor bureau; New York: NYS DOL, 888-525-2267) before acting.";

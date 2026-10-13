@@ -23,6 +23,8 @@ export interface ChatResult {
   model: string;
   promptTokens: number;
   completionTokens: number;
+  /** Provider finish reason, e.g. "length" when the token budget ran out. */
+  finishReason?: string;
 }
 
 export interface ChatOptions {
@@ -30,6 +32,8 @@ export interface ChatOptions {
   maxTokens?: number;
   temperature?: number;
   jsonMode?: boolean;
+  /** false = ask a reasoning model to answer without a thinking phase (Nemotron: enable_thinking false). */
+  reasoning?: boolean;
 }
 
 export interface ChatProvider {

@@ -38,6 +38,8 @@ export interface LoopOptions {
   /** Include search_official / fetch_official. Default true. */
   builtinRetrieval?: boolean;
   maxSteps?: number;
+  /** Output token budget per model turn. Reasoning models need room to think before the tool call. */
+  maxTokens?: number;
 }
 
 export interface LoopResult {
@@ -190,7 +192,7 @@ export class AgentSession {
   }
 
   /** One JSON-mode call, e.g. cheap triage on the Nano tier. Returns {} on any failure. */
-  async chatJson(system: string, user: string, tier: Tier = "nano", maxTokens = 500): Promise<Record<string, unknown>> {
+  async chatJson(system: string, user: string, tier: Tier = "nano", maxTokens = 500, reasoning = true): Promise<Record<string, unknown>> {
     if (this.overBudget()) return {};
     try {
       const r = await this.llm.chat(
@@ -199,7 +201,7 @@ export class AgentSession {
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        { jsonMode: true, maxTokens, temperature: 0 },
+        { jsonMode: true, maxTokens, temperature: 0, reasoning },
       );
       this.account(r.model, r.promptTokens, r.completionTokens);
       this.emit({ kind: "model", name: "json", model: r.model, detail: `${r.completionTokens} output tokens` });
@@ -267,7 +269,6 @@ export class AgentSession {
     let finished = false;
     let finishSummary: string | undefined;
     let stoppedEarly: string | undefined;
-    let nudged = false;
 
     const exec = async (call: ToolCall): Promise<string> => {
       this.usage.toolCalls++;
@@ -302,7 +303,10 @@ export class AgentSession {
       }
     };
 
-    for (let step = 0; step < (o.maxSteps ?? L.maxAgentSteps) && !finished; step++) {
+    let nudges = 0;
+    const maxSteps = o.maxSteps ?? L.maxAgentSteps;
+    let step = 0;
+    for (; step < maxSteps && !finished; step++) {
       if (this.overBudget()) {
         stoppedEarly = "Per-run model budget reached.";
         this.emit({ kind: "guard", name: "budget_stop", detail: stoppedEarly });
@@ -310,7 +314,7 @@ export class AgentSession {
       }
       let res;
       try {
-        res = await this.llm.chat(chain, messages, { tools: schemas, maxTokens: L.maxCompletionTokens });
+        res = await this.llm.chat(chain, messages, { tools: schemas, maxTokens: o.maxTokens ?? L.maxCompletionTokens, temperature: 0 });
       } catch (e) {
         stoppedEarly = `Model call failed: ${(e as Error).message.slice(0, 120)}`;
         this.emit({ kind: "guard", name: "model_error", detail: stoppedEarly });
@@ -318,25 +322,43 @@ export class AgentSession {
       }
       this.account(res.model, res.promptTokens, res.completionTokens);
       const calls = (res.message.tool_calls || []).slice(0, L.maxToolCallsPerStep);
+      const cutOff = res.finishReason === "length";
       this.emit({
         kind: "model",
         name: "agent",
         model: res.model,
-        detail: calls.length ? `requested ${calls.map((c) => c.function.name).join(", ")}` : "replied without tools",
+        detail: calls.length
+          ? `requested ${calls.map((c) => c.function.name).join(", ")}`
+          : cutOff
+            ? "ran out of output tokens before calling a tool"
+            : "replied without tools",
       });
       messages.push({ role: "assistant", content: res.message.content ?? null, tool_calls: calls.length ? calls : undefined });
       if (calls.length === 0) {
-        if (nudged) break;
-        nudged = true;
-        messages.push({ role: "user", content: "Use the tools to complete the task, then call finish." });
+        if (nudges >= 2) {
+          stoppedEarly = "The model stopped calling tools.";
+          this.emit({ kind: "guard", name: "no_tool_calls", detail: stoppedEarly });
+          break;
+        }
+        nudges++;
+        messages.push({
+          role: "user",
+          content: cutOff
+            ? "Your reply was cut off before any tool call. Keep your reasoning short and make the tool calls now."
+            : "Use the tools to complete the task, then call finish.",
+        });
         continue;
       }
-      for (const call of calls) {
-        messages.push({ role: "tool", tool_call_id: call.id, content: await exec(call) });
-        if (finished) break;
-      }
+      // Retrieval calls run in parallel; app tools run in order; finish runs last.
+      // Every call gets a tool message, in the order the model made them.
+      const results = new Map<string, string>();
+      const retrieval = calls.filter((c) => builtin && (c.function.name === "fetch_official" || c.function.name === "search_official"));
+      await Promise.all(retrieval.map(async (c) => results.set(c.id, await exec(c))));
+      for (const c of calls) if (!results.has(c.id) && c.function.name !== "finish") results.set(c.id, await exec(c));
+      for (const c of calls) if (!results.has(c.id)) results.set(c.id, await exec(c));
+      for (const c of calls) messages.push({ role: "tool", tool_call_id: c.id, content: results.get(c.id)! });
     }
-    if (!finished && !stoppedEarly) {
+    if (!finished && !stoppedEarly && step >= maxSteps) {
       stoppedEarly = "Agent step limit reached.";
       this.emit({ kind: "guard", name: "step_limit", detail: stoppedEarly });
     }

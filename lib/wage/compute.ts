@@ -1,4 +1,4 @@
-import { isHospitality, isTipped, NY_JOB_LABEL, NY_REGION_LABEL } from "./catalog";
+import { isHospitality, isTipped, NY_JOB_LABEL, NY_REGION_LABEL, specByKey } from "./catalog";
 import { LUNAR_YEARS } from "./holidays-tw";
 import type {
   Computation,
@@ -22,6 +22,8 @@ import { shiftHours } from "./parse";
 // and hand-checked cases.
 
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+export const DAYTYPE_ZH: Record<DayType, string> = { workday: "一般工作日", rest_day: "休息日", regular_day_off: "例假", holiday: "國定假日" };
 
 export function weekday(date: string): number {
   return new Date(date + "T00:00:00Z").getUTCDay();
@@ -41,7 +43,7 @@ function holidayOn(holidays: HolidayRecord[], date: string): HolidayRecord | und
 
 export function resolveShifts(
   raw: RawShift[],
-  opts: { jurisdiction: Jurisdiction; holidays: HolidayRecord[]; restDayWeekday?: number; dayOffWeekday?: number },
+  opts: { jurisdiction: Jurisdiction; holidays: HolidayRecord[]; restDayWeekday?: number | null; dayOffWeekday?: number | null },
 ): Shift[] {
   const sorted = [...raw].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
   return sorted.map((r, i) => {
@@ -54,11 +56,11 @@ export function resolveShifts(
       if (r.marked) {
         dayType = r.marked;
         source = "you";
-      } else if (opts.restDayWeekday !== undefined && weekday(r.date) === opts.restDayWeekday) {
+      } else if (typeof opts.restDayWeekday === "number" && weekday(r.date) === opts.restDayWeekday) {
         // A holiday on your rest day stays a rest day; the employer owes a substitute day off (MOL, 2026-10-07).
         dayType = "rest_day";
         source = "you";
-      } else if (opts.dayOffWeekday !== undefined && weekday(r.date) === opts.dayOffWeekday) {
+      } else if (typeof opts.dayOffWeekday === "number" && weekday(r.date) === opts.dayOffWeekday) {
         dayType = "regular_day_off";
         source = "you";
       } else if (h) {
@@ -111,6 +113,7 @@ interface Segment {
   hours: number;
   key: RuleKey | null; // null = straight time
   label: string;
+  labelZh?: string;
   extraKeys?: RuleKey[];
 }
 
@@ -119,15 +122,16 @@ function twSpecialSegments(s: Shift): Segment[] {
   const take = (from: number, len: number) => Math.max(0, Math.min(h, from + len) - from);
   if (s.dayType === "rest_day")
     return [
-      { hours: take(0, 2), key: "tw.rest_first2", label: "Rest day, hours 1-2" },
-      { hours: Math.max(0, h - 2), key: "tw.rest_after2", label: "Rest day, after hour 2" },
+      { hours: take(0, 2), key: "tw.rest_first2", label: "Rest day, hours 1-2", labelZh: "休息日，第 1 至 2 小時" },
+      { hours: Math.max(0, h - 2), key: "tw.rest_after2", label: "Rest day, after hour 2", labelZh: "休息日，第 3 小時起" },
     ];
   const k: RuleKey = s.dayType === "holiday" ? "tw.holiday" : "tw.day_off";
   const name = s.dayType === "holiday" ? "Holiday" : "Regular day off";
+  const zh = s.dayType === "holiday" ? "國定假日" : "例假";
   return [
-    { hours: take(0, 8), key: k, label: `${name}, hours 1-8` },
-    { hours: take(8, 2), key: "tw.ot_first2", label: `${name}, overtime hours 9-10` },
-    { hours: Math.max(0, h - 10), key: "tw.ot_next2", label: `${name}, overtime after hour 10` },
+    { hours: take(0, 8), key: k, label: `${name}, hours 1-8`, labelZh: `${zh}，第 1 至 8 小時` },
+    { hours: take(8, 2), key: "tw.ot_first2", label: `${name}, overtime hours 9-10`, labelZh: `${zh}，第 9 至 10 小時（延長工時）` },
+    { hours: Math.max(0, h - 10), key: "tw.ot_next2", label: `${name}, overtime after hour 10`, labelZh: `${zh}，第 11 小時起（延長工時）` },
   ];
 }
 
@@ -147,15 +151,16 @@ function twWorkdaySegments(s: Shift, weekRegularBefore: number, weeklyLimit?: nu
   const rest = Math.max(0, ot - 2);
   if (weeklyOt === 0)
     return [
-      { hours: straight, key: null, label: "Regular hours" },
-      { hours: first, key: "tw.ot_first2", label: "Overtime hours 9-10" },
-      { hours: rest, key: "tw.ot_next2", label: "Overtime after hour 10" },
+      { hours: straight, key: null, label: "Regular hours", labelZh: "正常工時" },
+      { hours: first, key: "tw.ot_first2", label: "Overtime hours 9-10", labelZh: "延長工時，第 9 至 10 小時" },
+      { hours: rest, key: "tw.ot_next2", label: "Overtime after hour 10", labelZh: "延長工時，第 11 小時起" },
     ];
   const why = dailyOt > 0 ? `over ${weeklyLimit} a week and 8 a day` : `over ${weeklyLimit} hours this week`;
+  const whyZh = dailyOt > 0 ? `本週超過 ${weeklyLimit} 小時且當天超過 8 小時` : `本週超過 ${weeklyLimit} 小時`;
   return [
-    { hours: straight, key: null, label: "Regular hours" },
-    { hours: first, key: "tw.ot_first2", label: `Overtime hours 1-2 of the day (${why})`, extraKeys: ["tw.weekly_hours"] },
-    { hours: rest, key: "tw.ot_next2", label: `Overtime after 2 hours (${why})`, extraKeys: ["tw.weekly_hours"] },
+    { hours: straight, key: null, label: "Regular hours", labelZh: "正常工時" },
+    { hours: first, key: "tw.ot_first2", label: `Overtime hours 1-2 of the day (${why})`, labelZh: `延長工時前 2 小時（${whyZh}）`, extraKeys: ["tw.weekly_hours"] },
+    { hours: rest, key: "tw.ot_next2", label: `Overtime after 2 hours (${why})`, labelZh: `延長工時第 3 小時起（${whyZh}）`, extraKeys: ["tw.weekly_hours"] },
   ];
 }
 
@@ -176,6 +181,12 @@ export function compute(input: {
   const lines: PayLine[] = [];
   const problems: Problem[] = [];
   const assumptions: string[] = [];
+  const assumptionsZh: string[] = [];
+  /** Every assumption in both languages, so the two lists stay in step. */
+  const assume = (en: string, zh?: string) => {
+    assumptions.push(en);
+    assumptionsZh.push(zh ?? en);
+  };
   const missing = new Set<RuleKey>();
   let base = 0;
   let topUp = 0;
@@ -183,7 +194,10 @@ export function compute(input: {
   let belowMin = 0;
   const stated = payslip.hourlyRate;
   if (stated === undefined)
-    assumptions.push(tipped ? "No hourly rate found on the payslip. The minimum cash wage for tipped workers is used." : "No hourly rate found on the payslip. The minimum wage is used as the rate.");
+    assume(
+      tipped ? "No hourly rate found on the payslip. The minimum cash wage for tipped workers is used." : "No hourly rate found on the payslip. The minimum wage is used as the rate.",
+      "薪資單上找不到時薪，先用最低工資當作時薪計算。",
+    );
 
   const minWage = (s: Shift) => {
     const mw = minWageFor(rules, s.date, jurisdiction === "US-NY" ? region : undefined);
@@ -203,6 +217,7 @@ export function compute(input: {
     let mult = 1;
     const keys: RuleKey[] = mw ? [mw.key] : [];
     let note: string | undefined;
+    let noteZh: string | undefined;
     if (seg.key) {
       const r = rule(rules, seg.key);
       if (r) {
@@ -211,15 +226,19 @@ export function compute(input: {
       } else {
         missing.add(seg.key);
         note = "Rule not retrieved: counted at straight time only.";
+        noteZh = "沒有取得這條規定的官方條文，只按原時薪計算。";
       }
     }
     for (const k of seg.extraKeys || []) if (rule(rules, k)) keys.push(k);
-    if (mw?.status === "pending_approval") note = [note, "Minimum wage for this date is decided but still pending approval."].filter(Boolean).join(" ");
+    if (mw?.status === "pending_approval") {
+      note = [note, "Minimum wage for this date is decided but still pending approval."].filter(Boolean).join(" ");
+      noteZh = [noteZh, "這天適用的最低工資已決定，尚待行政院核定。"].filter(Boolean).join("");
+    }
     const amount = seg.hours * rate * mult;
     base += seg.hours * (stated ?? rate);
     topUp += seg.hours * (rate - (stated ?? rate));
     premiums += seg.hours * rate * (mult - 1);
-    lines.push({ shiftId: s.id, date: s.date, label: seg.label, hours: seg.hours, baseRate: rate, multiplier: mult, amount, ruleKeys: keys, note });
+    lines.push({ shiftId: s.id, date: s.date, label: seg.label, labelZh: seg.labelZh, hours: seg.hours, baseRate: rate, multiplier: mult, amount, ruleKeys: keys, note, noteZh });
   };
 
   const startDay = input.workweekStart ?? 1;
@@ -243,23 +262,50 @@ export function compute(input: {
         } else {
           for (const seg of twSpecialSegments(s)) push(s, seg, rate, mw);
         }
-        if (s.hours > 12) problems.push({ kind: "check", message: `${s.date}: ${s.hours} hours in one day is over the 12-hour daily limit.`, ruleKeys: [] });
+        if (s.hours > 12)
+          problems.push({
+            kind: "check",
+            message: `${s.date}: ${s.hours} hours in one day is over the 12-hour daily limit.`,
+            messageZh: `${s.date}：一天工作 ${s.hours} 小時，超過每日 12 小時的上限。`,
+            ruleKeys: [],
+          });
         if (s.dayType === "regular_day_off")
-          problems.push({ kind: "check", message: `${s.date}: work on the regular day off (例假) is only allowed for emergencies. Ask your labor bureau.`, ruleKeys: ["tw.day_off"] });
+          problems.push({
+            kind: "check",
+            message: `${s.date}: work on the regular day off (例假) is only allowed for emergencies. Ask your labor bureau.`,
+            messageZh: `${s.date}：例假只有在天災、事變或突發事件時才能要你上班。可以打 1955 問問看。`,
+            ruleKeys: ["tw.day_off"],
+          });
         if (s.holidayName && s.dayType !== "holiday")
-          assumptions.push(`${s.date} is ${s.holidayName}, but it falls on your ${s.dayType.replace(/_/g, " ")}, so that day's rules apply. Your employer owes you a substitute day off (補假) for the holiday.`);
+          assume(
+            `${s.date} is ${s.holidayName}, but it falls on your ${s.dayType.replace(/_/g, " ")}, so that day's rules apply. Your employer owes you a substitute day off (補假) for the holiday.`,
+            `${s.date} 是${s.holidayName}，但這天是你的${DAYTYPE_ZH[s.dayType]}，所以按${DAYTYPE_ZH[s.dayType]}的規定計算；雇主應該另外給你一天補假。`,
+          );
       }
     }
-    assumptions.push(
+    assume(
       weekly
         ? `Taiwan: overtime counts hours beyond 8 a day or beyond ${weekly.value} a week. The workweek starts on ${WEEKDAY[startDay]}. Rest day and holiday hours have their own rates and do not count toward the ${weekly.value}. Flexible schedules (變形工時) are not checked.`
         : "Taiwan: overtime is counted per day only (hours beyond 8), because the weekly rule was not retrieved.",
+      weekly
+        ? `每天超過 8 小時、或每週超過 ${weekly.value} 小時的部分算延長工時（加班）。每週從${WEEKDAY_ZH[startDay]}起算。休息日與國定假日的工時另有算法，不算進 ${weekly.value} 小時。沒有檢查變形工時。`
+        : "這次沒有取得「每週 40 小時」的條文，所以只按每天超過 8 小時算加班。",
     );
-    if (shifts.some((s) => s.dayTypeSource === "default")) assumptions.push("Days not marked otherwise are treated as normal workdays. If one of them was your rest day, more is owed.");
+    if (shifts.some((s) => s.dayTypeSource === "default"))
+      assume(
+        "Days not marked otherwise are treated as normal workdays. If one of them was your rest day, more is owed.",
+        "沒有特別標示的日子都當作一般工作日。如果其中一天其實是你的休息日，應領的會更多。",
+      );
     const outside = [...new Set(shifts.map((s) => s.date.slice(0, 4)))].filter((y) => !LUNAR_YEARS.includes(y));
     if (outside.length)
-      assumptions.push(`Lunar-calendar holidays (Lunar New Year, Qingming, Dragon Boat, Mid-Autumn) are only known for ${LUNAR_YEARS.join(" and ")}. For ${outside.join(", ")}, mark them yourself with 國定假日.`);
-    assumptions.push("If a holiday fell on your rest day or day off, the substitute day off (補假) is agreed with your employer. Fair Shift cannot know which day it is; mark it with 國定假日 if you worked it.");
+      assume(
+        `Lunar-calendar holidays (Lunar New Year, Qingming, Dragon Boat, Mid-Autumn) are only known for ${LUNAR_YEARS.join(" and ")}. For ${outside.join(", ")}, mark them yourself with 國定假日.`,
+        `農曆節日（春節、清明、端午、中秋）只內建 ${LUNAR_YEARS.join("、")} 年的日期。${outside.join("、")} 年的請在那一行加上「國定假日」。`,
+      );
+    assume(
+      "If a holiday fell on your rest day or day off, the substitute day off (補假) is agreed with your employer. Fair Shift cannot know which day it is; mark it with 國定假日 if you worked it.",
+      "國定假日遇到休息日或例假時，雇主要另給一天補假，哪一天由你們約定，這個工具不知道。如果你在補假那天上班，請在那一行加上「國定假日」。",
+    );
   } else {
     const otKey: RuleKey = tipped ? "ny.ot_tipped" : "ny.ot_weekly";
     for (const [, ws] of weekList) {
@@ -374,7 +420,7 @@ export function compute(input: {
           due = Math.max(0, mw.value * (dayHours + 1) - dayPay);
           note = "Only the part not already covered by pay above the minimum wage.";
           if (due <= 0) {
-            assumptions.push(`${date}: the workday spread was ${spreadHours} hours, but pay above the minimum wage already covers the extra hour.`);
+            assume(`${date}: the workday spread was ${spreadHours} hours, but pay above the minimum wage already covers the extra hour.`);
             continue;
           }
         }
@@ -393,12 +439,12 @@ export function compute(input: {
       }
     }
 
-    assumptions.push(`New York: workweek starts on ${WEEKDAY[startDay]}. Region: ${NY_REGION_LABEL[region]}. Job: ${NY_JOB_LABEL[job]}.`);
+    assume(`New York: workweek starts on ${WEEKDAY[startDay]}. Region: ${NY_REGION_LABEL[region]}. Job: ${NY_JOB_LABEL[job]}.`);
     if (tipped) {
-      assumptions.push("Tipped job: the hourly rate on the payslip is read as your cash wage before tips, and the employer is assumed to take the full tip credit.");
-      if (payslip.tips === undefined) assumptions.push("No tips amount on the payslip, so it is assumed your tips covered the tip credit.");
+      assume("Tipped job: the hourly rate on the payslip is read as your cash wage before tips, and the employer is assumed to take the full tip credit.");
+      if (payslip.tips === undefined) assume("No tips amount on the payslip, so it is assumed your tips covered the tip credit.");
     }
-    assumptions.push(hosp ? "Call-in pay is not checked." : "Split shifts and call-in pay are not checked.");
+    assume(hosp ? "Call-in pay is not checked." : "Split shifts and call-in pay are not checked.");
   }
 
   const expectedTotal = round(lines.reduce((a, l) => a + l.amount, 0), currency);
@@ -406,12 +452,20 @@ export function compute(input: {
   const paidTotal = payslip.grossPaid;
   const shortfall = paidTotal !== undefined ? round(expectedTotal - paidTotal, currency) : undefined;
 
-  for (const k of missing)
-    problems.push({ kind: "missing_rule", message: `No official source was retrieved for ${k}. Lines that need it are counted without it.`, ruleKeys: [k] });
+  for (const k of missing) {
+    const sp = specByKey(k);
+    problems.push({
+      kind: "missing_rule",
+      message: `No official source was retrieved for "${sp?.label ?? k}". Lines that need it are counted without it.`,
+      messageZh: `這次沒有取得「${sp?.labelZh ?? k}」的官方條文，需要它的項目只按原時薪計算。`,
+      ruleKeys: [k],
+    });
+  }
   if (belowMin > 0)
     problems.push({
       kind: "below_min_wage",
       message: tipped ? "The cash wage is below the minimum cash wage for tipped workers on some shifts." : "The stated hourly rate is below the minimum wage for some shifts.",
+      messageZh: "薪資單上的時薪低於當時的最低工資。",
       amount: round(belowMin, currency),
       ruleKeys: [jurisdiction === "TW" ? "tw.min_wage_hourly" : tipped ? "ny.tip_credit" : "ny.min_wage_hourly"],
     });
@@ -419,6 +473,7 @@ export function compute(input: {
     problems.push({
       kind: "unpaid_hours",
       message: `The payslip pays ${payslip.hoursPaid} hours, but the schedule shows ${workedHours} hours.`,
+      messageZh: `薪資單只付了 ${payslip.hoursPaid} 小時，班表是 ${workedHours} 小時。`,
       amount: round((workedHours - payslip.hoursPaid) * (stated ?? 0), currency),
       ruleKeys: [],
     });
@@ -430,14 +485,16 @@ export function compute(input: {
           .flatMap((l) => l.ruleKeys.filter((k) => !k.includes("min_wage") && k !== "ny.tip_credit")),
       ),
     ];
+    const which = premiumKeys.map((k) => specByKey(k)).filter((x): x is NonNullable<typeof x> => !!x);
     problems.push({
       kind: "unpaid_premium",
-      message: "Premium pay is due for overtime, rest day, holiday or spread-of-hours.",
+      message: `Extra pay the rules require: ${[...new Set(which.map((x) => x.label.toLowerCase()))].join("; ")}.`,
+      messageZh: `依規定應另計的加給：${[...new Set(which.map((x) => x.labelZh))].join("、")}。`,
       amount: round(premiums, currency),
       ruleKeys: premiumKeys,
     });
   }
-  if (paidTotal === undefined) assumptions.push("No total paid amount found on the payslip, so no shortfall is calculated.");
+  if (paidTotal === undefined) assume("No total paid amount found on the payslip, so no shortfall is calculated.", "薪資單上找不到實領金額，所以算不出差額。");
 
   return {
     currency,
@@ -449,5 +506,6 @@ export function compute(input: {
     components: { base: round(base, currency), minWageTopUp: round(topUp, currency), premiums: round(premiums, currency) },
     problems,
     assumptions,
+    assumptionsZh,
   };
 }

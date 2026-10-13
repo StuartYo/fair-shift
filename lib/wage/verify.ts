@@ -135,6 +135,7 @@ export function verifyRule(
   if (cits.length === 0) return { ok: false, reason: "at least one citation is required" };
   const quotes = cits.map((c) => c.quote);
 
+  let exact = p.value;
   if (spec.kind === "amount") {
     const idx = quotes.findIndex((q) => targetAmounts(spec.key, q, region).some((a) => approxEqual(a, p.value)));
     if (idx < 0) return { ok: false, reason: `the quote does not state ${p.value} as the ${spec.label}` };
@@ -150,9 +151,15 @@ export function verifyRule(
     const q = quotes.find((x) => checkPhrases(spec.key, x));
     if (!q) return { ok: false, reason: `the quote is not the clause for ${spec.label}` };
     const rates = statedRates(q);
-    if (rates.length !== 1) return { ok: false, reason: "quote exactly one clause that states one rate" };
+    if (rates.length !== 1)
+      return {
+        ok: false,
+        reason: rates.length > 1 ? `the quote states ${rates.length} rates; shorten it to the clause for this rule only` : "the quote states no pay rate; quote the clause with the rate",
+      };
     const mult = spec.kind === "extra_fraction" ? 1 + rates[0] : rates[0];
-    if (!approxEqual(mult, p.value)) return { ok: false, reason: `the quote gives a multiplier of ${mult.toFixed(4)}, not ${p.value}` };
+    // 1.3333 for 4/3 is fine; the exact value read from the quote is stored.
+    if (!approxEqual(mult, p.value, 5e-4)) return { ok: false, reason: `the quote gives a multiplier of ${mult.toFixed(4)}, not ${p.value}` };
+    exact = mult;
   }
 
   let effectiveFrom: string | undefined;
@@ -160,7 +167,10 @@ export function verifyRule(
   if (spec.requiresDate) {
     const dates = new Set(quotes.flatMap(statedDates));
     if (!p.effective_from || !dates.has(p.effective_from))
-      return { ok: false, reason: "effective_from must be a date written in the quote (YYYY-MM-DD)" };
+      return {
+        ok: false,
+        reason: `effective_from must be a date written in the quote (YYYY-MM-DD)${dates.size ? `; the quote states ${[...dates].sort().join(", ")}` : "; this quote states no date"}`,
+      };
     effectiveFrom = p.effective_from;
     if (p.effective_to && dates.has(p.effective_to)) effectiveTo = p.effective_to;
   }
@@ -169,7 +179,7 @@ export function verifyRule(
     ok: true,
     value: {
       key: spec.key,
-      value: p.value,
+      value: exact,
       effectiveFrom,
       effectiveTo,
       status,
@@ -228,6 +238,31 @@ export function verifyLunarHoliday(p: ProposedHoliday, docs: DocStore, recordedB
   };
 }
 
+const ARTICLE_HEAD = /第[一二三四五六七八九十\d]+條/g;
+
+/**
+ * Two quotes: a "均放假一日" clause header, and a numbered item naming the
+ * holiday that sits under that header in the same article of the retrieved
+ * page (no article heading in between). Lets the model quote the header and
+ * the one item instead of the whole list.
+ */
+function listedUnderDayOffClause(cits: Citation[], name: string, docs: DocStore): boolean {
+  const heads = cits.filter((c) => /均?放假[一五]日/.test(c.quote) && !/名稱及日期/.test(c.quote));
+  const items = cits.filter((c) => c.quote.includes(name) && c.quote.length <= name.length + 12);
+  for (const item of items)
+    for (const head of heads) {
+      if (item.url !== head.url) continue;
+      const h = normalise(head.quote);
+      for (const ctx of docs.contextsBefore(item.url, item.quote, 1200)) {
+        const at = ctx.lastIndexOf(h);
+        if (at < 0) continue;
+        const between = ctx.slice(at + h.length);
+        if (!between.match(ARTICLE_HEAD)) return true;
+      }
+    }
+  return false;
+}
+
 export function verifyHoliday(p: ProposedHoliday, docs: DocStore, recordedBy: HolidayRecord["recordedBy"]): Result<HolidayRecord> {
   if (p.date) return verifyLunarHoliday(p, docs, recordedBy);
   const name = String(p.name || "").trim();
@@ -242,11 +277,16 @@ export function verifyHoliday(p: ProposedHoliday, docs: DocStore, recordedBy: Ho
   });
   if (!dateOk) return { ok: false, reason: `no quote gives ${name} the date ${p.month_day}` };
   // The day-off quote must come from a "放假" clause, not from the names-and-dates list.
-  const offOk = cits.some((c) =>
-    c.quote
-      .split(/第\s*\d+\s*條/)
-      .some((seg) => seg.includes(name) && /放假[一五]日/.test(seg) && !/名稱及日期/.test(seg)),
-  );
-  if (!offOk) return { ok: false, reason: `no quote says ${name} is a day off` };
+  const offOk =
+    cits.some((c) =>
+      c.quote
+        .split(/第\s*\d+\s*條/)
+        .some((seg) => seg.includes(name) && /放假[一五]日/.test(seg) && !/名稱及日期/.test(seg)),
+    ) || listedUnderDayOffClause(cits, name, docs);
+  if (!offOk)
+    return {
+      ok: false,
+      reason: `no quote says ${name} is a day off. Quote the clause "下列紀念日均放假一日..." (or the 均放假一日 item) and the numbered item that names ${name}, either as one exact passage or as two separate exact quotes`,
+    };
   return { ok: true, value: { monthDay: p.month_day!, name, citations: cits, recordedBy } };
 }

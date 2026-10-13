@@ -57,10 +57,11 @@ function findDate(line: string, year: number): string | null {
 }
 
 function findBreak(line: string): number {
-  let m = line.match(/(?:休息|午休|break|lunch)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(分鐘|分|min|mins|minutes|小時|h|hr|hrs|hours?)/i);
+  // 休息60分, 午休 30 分鐘, 休1小時, break 30 min, lunch 1h
+  let m = line.match(/(?:休息|午休|休|break|lunch)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(分鐘|分|min|mins|minutes|小時|鐘頭|h|hr|hrs|hours?)/i);
+  if (m) return /小時|鐘頭|h/i.test(m[2]) && !/min/i.test(m[2]) ? Math.round(Number(m[1]) * 60) : Math.round(Number(m[1]));
+  m = line.match(/(\d+(?:\.\d+)?)\s*(分鐘|min|mins|minutes|小時|h|hr|hrs|hours?)\s*(?:的)?\s*(?:休息|break|lunch)/i);
   if (m) return /小時|h/i.test(m[2]) && !/min/i.test(m[2]) ? Math.round(Number(m[1]) * 60) : Math.round(Number(m[1]));
-  m = line.match(/(\d+)\s*(?:分鐘|min)\s*(?:休息|break)/i);
-  if (m) return Number(m[1]);
   return 0;
 }
 
@@ -68,6 +69,18 @@ function marker(line: string): Shift["dayType"] | null {
   if (/國定假日|國假|holiday/i.test(line)) return "holiday";
   if (/例假|regular day off/i.test(line)) return "regular_day_off";
   if (/休息日|rest day/i.test(line)) return "rest_day";
+  return null;
+}
+
+const ZH_WEEKDAY: Record<string, number> = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 };
+const EN_WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** Weekday named on a line without a date: 週五, 星期六, 禮拜天, fri, Saturday. */
+export function findWeekday(line: string): number | null {
+  const m = line.match(/(?:週|周|星期|禮拜)\s*([日天一二三四五六])/);
+  if (m) return ZH_WEEKDAY[m[1]];
+  const e = line.match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?(?![a-z])/i);
+  if (e) return EN_WEEKDAY.indexOf(e[1].toLowerCase());
   return null;
 }
 
@@ -80,13 +93,49 @@ export interface RawShift {
   raw: string;
 }
 
-export function parseScheduleRules(text: string, year: number): RawShift[] {
-  const out: RawShift[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const date = findDate(line, year);
-    if (!date || !isValidDate(date)) continue;
-    const r = line.replace(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/, " ").replace(/(?:^|\s)\d{1,2}\/\d{1,2}(?![\d/])/, " ").match(RANGE);
+export interface ScheduleParse {
+  shifts: RawShift[];
+  /** Lines that look like a shift (they have a time range) but could not be read, with the reason. */
+  unread: { line: string; reason: "no_date" | "weekday_ambiguous" }[];
+}
+
+function datesInPeriod(period?: { start?: string; end?: string }): string[] {
+  if (!period?.start || !period.end || !isValidDate(period.start) || !isValidDate(period.end) || period.end < period.start) return [];
+  const out: string[] = [];
+  const d = new Date(period.start + "T00:00:00Z");
+  for (let i = 0; i < 62; i++) {
+    const s = d.toISOString().slice(0, 10);
+    if (s > period.end) break;
+    out.push(s);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Rule-based schedule parser. Lines with a weekday but no date ("週五 18-22")
+ * are placed in the pay period when exactly one day of the period falls on
+ * that weekday; otherwise they are reported as unread, never guessed.
+ */
+export function parseScheduleDetailed(text: string, year: number, period?: { start?: string; end?: string }): ScheduleParse {
+  const shifts: RawShift[] = [];
+  const unread: ScheduleParse["unread"] = [];
+  const periodDates = datesInPeriod(period);
+  for (const original of text.split(/\r?\n/)) {
+    const line = original.normalize("NFKC");
+    let date = findDate(line, year);
+    if (date && !isValidDate(date)) date = null;
+    const r = line.replace(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/, " ").replace(/(?:^|[^\d:])\d{1,2}\/\d{1,2}(?![\d/])/, " ").match(RANGE);
     if (!r) continue;
+    if (!date) {
+      const wd = findWeekday(line);
+      const hits = wd === null ? [] : periodDates.filter((d) => new Date(d + "T00:00:00Z").getUTCDay() === wd);
+      if (hits.length === 1) date = hits[0];
+      else {
+        unread.push({ line: original.trim().slice(0, 120), reason: wd === null ? "no_date" : "weekday_ambiguous" });
+        continue;
+      }
+    }
     const startAmpm = r[1] || r[5];
     let endAmpm = r[6] || r[10];
     // "下午5點-10點" -> the end inherits the afternoon marker
@@ -95,10 +144,18 @@ export function parseScheduleRules(text: string, year: number): RawShift[] {
     const endMin = toMinutes(Number(r[7]), minutePart(r[8], r[9]), endAmpm);
     // "5-10pm" -> the start inherits pm when that keeps the shift in order
     if (!startAmpm && endAmpm && /pm|下午|晚上/i.test(endAmpm) && Number(r[2]) < 12 && startMin + 720 < endMin) startMin += 720;
+    if (startMin > 24 * 60 || endMin > 24 * 60) {
+      unread.push({ line: original.trim().slice(0, 120), reason: "no_date" });
+      continue;
+    }
     const fmt = (m: number) => `${pad(Math.floor((m % 1440) / 60))}:${pad(m % 60)}`;
-    out.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: findBreak(line), marked: marker(line), raw: line.trim() });
+    shifts.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: findBreak(line), marked: marker(line), raw: original.trim() });
   }
-  return out;
+  return { shifts, unread };
+}
+
+export function parseScheduleRules(text: string, year: number, period?: { start?: string; end?: string }): RawShift[] {
+  return parseScheduleDetailed(text, year, period).shifts;
 }
 
 export function parsePayslipRules(text: string, currency: Payslip["currency"]): Payslip {

@@ -1,12 +1,27 @@
 import type { CheckInput, RuleKey } from "../lib/wage/types";
 
 // SYNTHETIC test data. Every schedule and payslip below is invented; no real
-// person or employer. Expected values were computed by hand from the official
-// rules recorded in fixtures/official-pages.json (see the "why" field).
+// person or employer.
+//
+// How the truth values were made: by hand, by the author, from the official
+// rule text in fixtures/official-pages.json (Taiwan Ministry of Labor rates,
+// Labor Standards Act Art. 24, 39, 40, Enforcement Rules Art. 20-1, the holiday
+// act on the DGPA calendar pages; NYS DOL P700 and wage orders CR146 / CR142).
+// Each case's "why" field is the full arithmetic: hours per day from the
+// schedule, which rule applies to which hours, the multiplier, the sum, and the
+// rounding (Taiwan: nearest dollar; New York: cents). Fair Shift's own code was
+// not used to produce them. Groups:
+//  - main: the first 13 cases, clean formats.
+//  - messy: 5 schedules typed the way people really send them (LINE messages
+//    without dates, "18-22", "休1小時", overnight shifts, full-width digits,
+//    a texted English schedule).
+//  - heldout (eval/heldout.ts): written and committed before the first run that
+//    included them, expected values frozen in that commit.
 
 export interface EvalCase {
   id: string;
   title: string;
+  group?: "main" | "messy" | "heldout";
   input: CheckInput;
   expected: {
     shifts: number;
@@ -29,11 +44,14 @@ export const EVAL_CASES: EvalCase[] = [
     title: "Taipei store clerk, worked National Day, paid straight time",
     input: {
       jurisdiction: "TW",
+      // The sample's employer set Thursday as the rest day and Sunday as the regular day off.
+      restDayWeekday: 4,
+      dayOffWeekday: 0,
       scheduleText: "【10月班表】（範例資料）\n10/5(一) 17:00-22:00\n10/7(三) 下午5點到10點\n10/10(六) 10:00~16:00\n10/12(一) 17:00-23:00",
       payslipText: "薪資單 2026/10/01 - 2026/10/15\n時薪：196\n總工時：22 小時\n實發金額：4,312",
     },
     expected: { shifts: 4, workedHours: 22, expectedTotal: 5488, paidTotal: 4312, shortfall: 1176, minWageUsed: 196, holidayDates: ["2026-10-10"] },
-    why: "16 h x 196 + 6 h x 196 x 2 (Art. 39, 國慶日 10-10) = 3136 + 2352 = 5488.",
+    why: "Rest day Thursday, day off Sunday, so Saturday 10-10 is a workday that is a national holiday. 16 h x 196 + 6 h x 196 x 2 (Art. 39, 國慶日 10-10) = 3136 + 2352 = 5488.",
   },
   {
     id: "tw-old-rate-overtime",
@@ -185,5 +203,67 @@ export const EVAL_CASES: EvalCase[] = [
     },
     expected: { shifts: 5, workedHours: 30, expectedTotal: 540, paidTotal: 540, shortfall: 0, minWageUsed: 17 },
     why: "30 x 18 = 540.",
+  },
+  // ---- messy formats ----
+  {
+    id: "tw-messy-line-weekdays",
+    group: "messy",
+    title: "LINE message with weekdays only, 18-22 style hours, 休1小時",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "店長：下週班表喔～\n週一 18-22\n週三 18-22\n週五 18-22\n週六 12-20 休1小時",
+      payslipText: "薪資明細 2026/10/19-2026/10/25\n時薪 200\n工時 19\n實發 3,800",
+    },
+    expected: { shifts: 4, workedHours: 19, expectedTotal: 3800, paidTotal: 3800, shortfall: 0, minWageUsed: 196 },
+    why: "Pay period 10/19 (Mon) to 10/25: 週一 = 10/19, 週三 = 10/21, 週五 = 10/23, 週六 = 10/24. Hours 4 + 4 + 4 + (8 - 1 break) = 19, none over 8 a day or 40 a week. 19 x 200 = 3800, paid correctly. Tests that 休1小時 is a break and that no shortfall is invented.",
+  },
+  {
+    id: "tw-messy-overnight",
+    group: "messy",
+    title: "Overnight shifts ending after midnight, paid as 6 hours each",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "大夜班\n10/16(五) 22:00-06:00 休1小時（跨夜）\n10/17(六) 22:00～06:00 休息1小時",
+      payslipText: "2026/10/16 - 2026/10/18\n時薪 196\n工時 12\n實發 2,352",
+    },
+    expected: { shifts: 2, workedHours: 14, expectedTotal: 2744, paidTotal: 2352, shortfall: 392, minWageUsed: 196 },
+    why: "Each shift 22:00 to 06:00 next day = 8 h minus 1 h break = 7 h; 14 h at 196 = 2744. No day over 8 h, week under 40 h. Paid 12 h x 196 = 2352. Shortfall 392.",
+  },
+  {
+    id: "tw-messy-chinese-times",
+    group: "messy",
+    title: "Times written in words (晚上6點到11點), rate below minimum wage",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "10/26 晚上6點到11點\n10/27 下午2點半到晚上9點半 休息30分鐘\n10/28 早上9點到下午1點",
+      payslipText: "2026/10/26 - 2026/10/31\n時薪 190\n工時 15.5\n實發 2,945",
+    },
+    expected: { shifts: 3, workedHours: 15.5, expectedTotal: 3038, paidTotal: 2945, shortfall: 93, minWageUsed: 196 },
+    why: "18:00-23:00 = 5 h; 14:30-21:30 minus 30 min = 6.5 h; 09:00-13:00 = 4 h; total 15.5 h. Rate 190 is below the 2026 minimum of 196, so 15.5 x 196 = 3038. Paid 15.5 x 190 = 2945. Shortfall 93.",
+  },
+  {
+    id: "tw-messy-fullwidth",
+    group: "messy",
+    title: "Full-width digits and punctuation, one half hour not paid",
+    input: {
+      jurisdiction: "TW",
+      scheduleText: "１０／２９（四）　１７：００～２２：００\n１０／３０（五）　１７：００～２２：３０",
+      payslipText: "期間：２０２６／１０／２９－２０２６／１０／３１\n時薪：２００\n工時：１０\n實發：２，０００",
+    },
+    expected: { shifts: 2, workedHours: 10.5, expectedTotal: 2100, paidTotal: 2000, shortfall: 100, minWageUsed: 196 },
+    why: "17:00-22:00 = 5 h; 17:00-22:30 = 5.5 h; total 10.5 h x 200 = 2100. Paid 10 h x 200 = 2000. Shortfall 100.",
+  },
+  {
+    id: "ny-messy-text",
+    group: "messy",
+    title: "Texted schedule (mon 10/19 5-10pm), NYC rate below minimum",
+    input: {
+      jurisdiction: "US-NY",
+      nyRegion: "nyc",
+      scheduleText: "hey here's next week\nmon 10/19 5-10pm\nwed 10/21 5-10pm\nsat 10/24 11am-7pm 30min break",
+      payslipText: "Period 2026-10-19 to 2026-10-25\nRate: $16.50\nHours: 17.5\nGross pay: $288.75",
+    },
+    expected: { shifts: 3, workedHours: 17.5, expectedTotal: 297.5, paidTotal: 288.75, shortfall: 8.75, minWageUsed: 17 },
+    why: "17:00-22:00 = 5 h twice; 11:00-19:00 minus 30 min = 7.5 h; total 17.5 h. NYC 2026 minimum is $17.00 (P700), so 17.5 x 17.00 = 297.50. Paid 17.5 x 16.50 = 288.75. Shortfall 8.75.",
   },
 ];

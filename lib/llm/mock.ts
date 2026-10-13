@@ -8,9 +8,11 @@ import type { ChatMessage, ChatOptions, ChatProvider, ChatResult, ToolCall } fro
 export const MOCK_MODEL = "mock/scripted-agent";
 
 export interface MockAction {
-  /** Tool to call. Omit to reply with plain text. */
+  /** Tool to call. Omit (and omit calls) to reply with plain text. */
   tool?: string;
   args?: Record<string, unknown>;
+  /** Several tool calls in one turn, like a model making parallel calls. */
+  calls?: { tool: string; args?: Record<string, unknown> }[];
   text?: string;
 }
 
@@ -35,14 +37,15 @@ export class MockProvider implements ChatProvider {
   async chat(_models: string[], messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResult> {
     const action = this.script(messages, opts);
     const n = this.calls++;
-    if (!action.tool) {
+    const list = action.calls ?? (action.tool ? [{ tool: action.tool, args: action.args }] : []);
+    if (list.length === 0) {
       return { message: { content: action.text ?? "" }, model: MOCK_MODEL, promptTokens: 0, completionTokens: 0 };
     }
-    const call: ToolCall = {
-      id: `mock_${n}`,
+    const tool_calls: ToolCall[] = list.map((c, i) => ({
+      id: `mock_${n}_${i}`,
       type: "function",
-      function: { name: action.tool, arguments: JSON.stringify(action.args ?? {}) },
-    };
-    return { message: { content: null, tool_calls: [call] }, model: MOCK_MODEL, promptTokens: 0, completionTokens: 0 };
+      function: { name: c.tool, arguments: JSON.stringify(c.args ?? {}) },
+    }));
+    return { message: { content: null, tool_calls }, model: MOCK_MODEL, promptTokens: 0, completionTokens: 0 };
   }
 }

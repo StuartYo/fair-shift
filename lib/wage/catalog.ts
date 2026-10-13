@@ -17,6 +17,10 @@ export interface RuleSpec {
   key: RuleKey;
   jurisdiction: Jurisdiction;
   label: string;
+  /** Traditional Chinese label. */
+  labelZh: string;
+  /** Where the rule is written, for the result page and the employer letter. */
+  cite: { en: string; zh: string };
   kind: ValueKind;
   requiresDate: boolean;
   seedUrls: string[];
@@ -38,6 +42,14 @@ export const MOL_2027 = "https://www.mol.gov.tw/1607/1632/1633/99195/post";
 // stay in the README for people.
 export const LSA_ALL = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014930";
 export const LSA_RULES_ALL = "https://laws.mol.gov.tw/FLAW/FLAWDAT0201.aspx?id=FL014931";
+// Single-article pages on the same MOL law database (about 1,000 characters
+// each, retrieved with Tavily extract on 2026-10-14). The agent fetches these
+// instead of the 16,000-character full act: short pages fit in one view, so the
+// model can copy the clause without paging through the law.
+export const LSA_ART24 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014930&flno=24";
+export const LSA_ART39 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014930&flno=39";
+export const LSA_ART40 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014930&flno=40";
+export const LSA_RULES_ART20_1 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014931&flno=20-1";
 export const MOL_HOURLY = "https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/";
 /**
  * 紀念日及節日實施條例 Art. 3 to 9, quoted verbatim on the DGPA government office
@@ -63,86 +75,104 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "tw.min_wage_hourly",
     jurisdiction: "TW",
     label: "Taiwan hourly minimum wage",
+    labelZh: "每小時最低工資",
+    cite: { en: "Ministry of Labor minimum wage notice", zh: "勞動部最低工資公告" },
     kind: "amount",
     requiresDate: true,
     seedUrls: [MOL_HISTORY, MOL_2027],
     query: "每小時最低工資 自1月1日起實施 勞動部",
-    ask: "Hourly minimum wage (每小時最低工資) and the date it takes effect. Record one entry per rate that covers the shift dates. Mark a rate that still awaits Executive Yuan approval as pending.",
+    ask: "Hourly minimum wage (每小時最低工資) and the date it takes effect. Record one entry per rate whose dates cover a shift date (a rate stays in force until the next one starts). Quote one whole sentence that states both the date and the hourly amount, e.g. from 民國 through 每小時最低工資為196元。 on the rate history page, or from 決定自116年1月1日起 through 由196元調整至205元。 in the press release.",
   },
   {
     key: "tw.ot_first2",
     jurisdiction: "TW",
     label: "Overtime, first 2 extra hours on a workday",
+    labelZh: "平日延長工時前 2 小時",
+    cite: { en: "Labor Standards Act Art. 24, para. 1, item 1", zh: "勞動基準法第 24 條第 1 項第 1 款" },
     kind: "extra_fraction",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART24],
     query: "勞動基準法 第24條 延長工作時間在二小時以內者 加給三分之一",
-    ask: "Labor Standards Act Art. 24: pay for the first 2 overtime hours. Quote only that clause.",
+    ask: "Labor Standards Act Art. 24: pay for the first 2 overtime hours. Quote item 一 only, from 延長工作時間在二小時以內者 through 加給三分之一以上。",
   },
   {
     key: "tw.ot_next2",
     jurisdiction: "TW",
     label: "Overtime, next 2 extra hours on a workday",
+    labelZh: "平日延長工時第 3 至 4 小時",
+    cite: { en: "Labor Standards Act Art. 24, para. 1, item 2", zh: "勞動基準法第 24 條第 1 項第 2 款" },
     kind: "extra_fraction",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART24],
     query: "勞動基準法 第24條 再延長工作時間在二小時以內者 加給三分之二",
-    ask: "Art. 24: pay for overtime hours 3 and 4. Quote only that clause.",
+    ask: "Art. 24: pay for overtime hours 3 and 4. Quote item 二 only, from 再延長工作時間在二小時以內者 through 加給三分之二以上。",
   },
   {
     key: "tw.rest_first2",
     jurisdiction: "TW",
     label: "Rest day work, first 2 hours",
+    labelZh: "休息日出勤前 2 小時",
+    cite: { en: "Labor Standards Act Art. 24, para. 2", zh: "勞動基準法第 24 條第 2 項" },
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART24],
     query: "勞動基準法 休息日工作 二小時以內 另再加給一又三分之一",
-    ask: "Art. 24 para. 2: rest day (休息日) pay for the first 2 hours. Quote only that clause.",
+    ask: "Art. 24 para. 2: rest day (休息日) pay for the first 2 hours. Quote from 雇主使勞工於第三十六條所定休息日工作 through 另再加給一又三分之一以上 (stop before the semicolon; the rest of the sentence is the next rule).",
   },
   {
     key: "tw.rest_after2",
     jurisdiction: "TW",
     label: "Rest day work, after 2 hours",
+    labelZh: "休息日出勤第 3 小時起",
+    cite: { en: "Labor Standards Act Art. 24, para. 2", zh: "勞動基準法第 24 條第 2 項" },
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART24],
     query: "勞動基準法 休息日 工作二小時後再繼續工作者 另再加給一又三分之二",
-    ask: "Art. 24 para. 2: rest day pay after the first 2 hours. Quote only that clause.",
+    ask: "Art. 24 para. 2: rest day pay after the first 2 hours. Quote from 工作二小時後再繼續工作者 through 另再加給一又三分之二以上。",
   },
   {
     key: "tw.holiday",
     jurisdiction: "TW",
     label: "Work on a national holiday",
+    labelZh: "國定假日出勤",
+    cite: { en: "Labor Standards Act Art. 39", zh: "勞動基準法第 39 條" },
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART39],
     query: "勞動基準法 第39條 休假日工作 工資應加倍發給",
-    ask: "Art. 39: pay for working on a national holiday (休假日). Quote only that sentence.",
+    ask: "Art. 39: pay for working on a national holiday (休假日). Quote the sentence 雇主經徵得勞工同意於休假日工作者，工資應加倍發給。",
   },
   {
     key: "tw.day_off",
     jurisdiction: "TW",
     label: "Work on the regular day off (emergencies only)",
+    labelZh: "例假出勤（限天災、事變或突發事件）",
+    cite: { en: "Labor Standards Act Art. 40", zh: "勞動基準法第 40 條" },
     kind: "literal_rate",
     requiresDate: false,
-    seedUrls: [LSA_ALL],
+    seedUrls: [LSA_ART40],
     query: "勞動基準法 第40條 停止假期之工資 應加倍發給",
-    ask: "Art. 40: pay when the employer suspends a day off. Quote only that sentence.",
+    ask: "Art. 40: pay when the employer suspends a day off. Quote from 但停止假期之工資 through 應加倍發給.",
   },
   {
     key: "tw.weekly_hours",
     jurisdiction: "TW",
     label: "Overtime starts after 40 hours a week",
+    labelZh: "每週超過 40 小時算延長工時",
+    cite: { en: "LSA Enforcement Rules Art. 20-1", zh: "勞動基準法施行細則第 20 條之 1" },
     kind: "hours_limit",
     requiresDate: false,
-    seedUrls: [LSA_RULES_ALL],
+    seedUrls: [LSA_RULES_ART20_1],
     query: "勞動基準法施行細則 第20條之1 延長勞工工作之時間 每週工作總時數超過四十小時之部分",
-    ask: "LSA Enforcement Rules Art. 20-1: overtime includes the hours beyond a weekly total. Value is that weekly number of hours. Quote only that item.",
+    ask: "LSA Enforcement Rules Art. 20-1: overtime includes the hours beyond a weekly total. Value is that weekly number of hours. Quote item 一 from 每日工作時間超過八小時 through 之部分。 (stop before 但).",
   },
   {
     key: "ny.min_wage_hourly",
     jurisdiction: "US-NY",
     label: "New York State hourly minimum wage",
+    labelZh: "紐約州最低時薪",
+    cite: { en: "NYS DOL minimum wage notice (P700)", zh: "紐約州勞工局最低工資公告（P700）" },
     kind: "amount",
     requiresDate: true,
     seedUrls: [NY_P700, NY_MW],
@@ -153,6 +183,8 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "ny.ot_weekly",
     jurisdiction: "US-NY",
     label: "New York overtime after 40 hours a week",
+    labelZh: "每週超過 40 小時加班 1.5 倍",
+    cite: { en: "NYS DOL fact sheet P700", zh: "紐約州勞工局說明 P700" },
     kind: "literal_rate",
     requiresDate: false,
     seedUrls: [NY_P700],
@@ -163,6 +195,8 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "ny.tip_credit",
     jurisdiction: "US-NY",
     label: "New York tip credit",
+    labelZh: "小費抵減",
+    cite: { en: "12 NYCRR 146-1.3", zh: "12 NYCRR 146-1.3" },
     kind: "amount",
     requiresDate: true,
     seedUrls: [NY_CR146],
@@ -174,6 +208,8 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "ny.ot_tipped",
     jurisdiction: "US-NY",
     label: "Tipped overtime (1.5x before the tip credit)",
+    labelZh: "小費員工加班費",
+    cite: { en: "12 NYCRR 146-1.4", zh: "12 NYCRR 146-1.4" },
     kind: "literal_rate",
     requiresDate: false,
     seedUrls: [NY_CR146],
@@ -185,6 +221,8 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "ny.spread_hosp",
     jurisdiction: "US-NY",
     label: "Spread of hours over 10 (restaurants and hotels)",
+    labelZh: "工時跨度超過 10 小時（餐旅業）",
+    cite: { en: "12 NYCRR 146-1.6", zh: "12 NYCRR 146-1.6" },
     kind: "hours_limit",
     requiresDate: false,
     seedUrls: [NY_CR146],
@@ -196,6 +234,8 @@ export const RULE_SPECS: RuleSpec[] = [
     key: "ny.spread_misc",
     jurisdiction: "US-NY",
     label: "Spread of hours over 10 (other industries)",
+    labelZh: "工時跨度超過 10 小時（其他行業）",
+    cite: { en: "12 NYCRR 142-2.4", zh: "12 NYCRR 142-2.4" },
     kind: "hours_limit",
     requiresDate: false,
     seedUrls: [NY_CR142],

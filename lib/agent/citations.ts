@@ -50,6 +50,12 @@ export class DocStore {
         return { ok: true, citation: { url: d.url, title: d.title, quote: quote.trim(), verified: true, via: d.via } };
       }
     }
+    // Same words on another page retrieved in this run: say where, so the model can fix the source_url.
+    for (const [k, docs] of this.docs) {
+      if (k === urlKey(url)) continue;
+      const d = docs.find((x) => normalise(x.content).includes(q));
+      if (d) return { ok: false, reason: `This quote is on ${d.url}, not on ${url}. Use that page as source_url.` };
+    }
     return { ok: false, reason: "Quote not found verbatim in the retrieved text. Copy the exact words from the tool result." };
   }
 
