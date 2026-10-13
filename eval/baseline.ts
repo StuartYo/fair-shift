@@ -38,33 +38,43 @@ const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" &
 
 export async function runBaseline(llm: ChatProvider, c: EvalCase, today = new Date().toISOString().slice(0, 10)): Promise<BaselineResult> {
   const t0 = Date.now();
-  try {
-    const r = await llm.chat(
-      modelChain("super"),
-      [
-        { role: "system", content: BASELINE_SYSTEM },
-        { role: "user", content: baselineUser(c, today) },
-      ],
-      { jsonMode: true, maxTokens: 2000, temperature: 0 },
-    );
-    const [pin, pout] = priceForModel(r.model);
-    const costUsd = (r.promptTokens * pin + r.completionTokens * pout) / 1_000_000;
-    const txt = (r.message.content || "").replace(/^```(?:json)?/, "").replace(/```$/, "").trim();
-    const j = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
-    return {
-      caseId: c.id,
-      model: r.model,
-      minWageUsed: num(j.min_wage_used),
-      expectedTotal: num(j.expected_total),
-      shortfall: num(j.shortfall),
-      sources: Array.isArray(j.sources) ? j.sources.slice(0, 5) : [],
-      costTokens: r.promptTokens + r.completionTokens,
-      costUsd,
-      ms: Date.now() - t0,
-    };
-  } catch (e) {
-    return { caseId: c.id, model: "", sources: [], costTokens: 0, costUsd: 0, ms: Date.now() - t0, error: (e as Error).message.slice(0, 120) };
+  let lastError = "";
+  let spentTokens = 0;
+  let spentUsd = 0;
+  // Super is a reasoning model: a small token budget can be used up before the
+  // JSON answer starts, which would score as a parse error, not a wrong answer.
+  // Give it a large budget and one retry so the baseline is judged on answers.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await llm.chat(
+        modelChain("super"),
+        [
+          { role: "system", content: BASELINE_SYSTEM },
+          { role: "user", content: baselineUser(c, today) },
+        ],
+        { jsonMode: true, maxTokens: 16000, temperature: 0 },
+      );
+      const [pin, pout] = priceForModel(r.model);
+      spentTokens += r.promptTokens + r.completionTokens;
+      spentUsd += (r.promptTokens * pin + r.completionTokens * pout) / 1_000_000;
+      const txt = (r.message.content || "").replace(/^```(?:json)?/, "").replace(/```$/, "").trim();
+      const j = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
+      return {
+        caseId: c.id,
+        model: r.model,
+        minWageUsed: num(j.min_wage_used),
+        expectedTotal: num(j.expected_total),
+        shortfall: num(j.shortfall),
+        sources: Array.isArray(j.sources) ? j.sources.slice(0, 5) : [],
+        costTokens: spentTokens,
+        costUsd: spentUsd,
+        ms: Date.now() - t0,
+      };
+    } catch (e) {
+      lastError = (e as Error).message.slice(0, 120);
+    }
   }
+  return { caseId: c.id, model: "", sources: [], costTokens: spentTokens, costUsd: spentUsd, ms: Date.now() - t0, error: lastError };
 }
 
 export interface Score {
