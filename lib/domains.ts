@@ -1,8 +1,14 @@
-// Official-domain allowlist. The default list is a placeholder; each app sets its
-// own with APP_ALLOWED_DOMAINS (comma separated) or passes one in code.
+// Official-domain allowlist. Defaults to the labor authorities Fair Shift uses;
+// override with APP_ALLOWED_DOMAINS (comma separated).
 // A host matches if it equals an entry or is a subdomain of it.
 
-export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = ["gov.tw", "gov"];
+export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
+  "mol.gov.tw", // Taiwan Ministry of Labor
+  "law.moj.gov.tw", // Taiwan laws database
+  "dol.ny.gov", // New York State Department of Labor
+  "labor.ny.gov",
+  "dol.gov", // US Department of Labor
+];
 
 export function allowedDomains(): readonly string[] {
   const raw = process.env.APP_ALLOWED_DOMAINS;

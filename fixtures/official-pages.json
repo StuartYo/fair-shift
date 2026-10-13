@@ -1,0 +1,61 @@
+{
+ "_note": "Recorded fixtures for demo mode. Text captured on 2026-10-13 directly from the official URLs listed (HTML stripped to text; PDFs via pdftotext). Used only when NEBIUS_API_KEY or TAVILY_API_KEY is missing. Live mode never reads this file.",
+ "recordedOn": "2026-10-13",
+ "docs": [
+  {
+   "url": "https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/",
+   "title": "歷年最低工資/基本工資調整 (Ministry of Labor)",
+   "content": "歷年基本工資調整情形 民國113年9月19日發布，自114年1月1日起實施，訂定每月最低工資為28,590元，每小時最低工資為190元。 民國114年10月21日發布，自115年1月1日起實施，訂定每月最低工資為29,500元，每小時最低工資為196元。"
+  },
+  {
+   "url": "https://www.mol.gov.tw/1607/1632/1633/99195/post",
+   "title": "最低工資連11漲!審議會決定自116年1月1日起 (Ministry of Labor press release, 2026-09-24)",
+   "content": "最低工資審議會於今（24）日召開會議，經勞、資、學、政四方委員討論，決定自116年1月1日起，每月最低工資由29,500元調整至30,900元，調升1,400元，調幅4.745％；每小時最低工資則比照每月最低工資之調幅，由196元調整至205元。調整案將由勞動部陳報行政院核定。若經行政院核定，最低工資將連11年調漲，持續提升基層勞工薪資，保障勞工基本生活。"
+  },
+  {
+   "url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24",
+   "title": "勞動基準法 第 24 條 (Labor Standards Act, Art. 24)",
+   "content": "雇主延長勞工工作時間者，其延長工作時間之工資，依下列標準加給：一、延長工作時間在二小時以內者，按平日每小時工資額加給三分之一以上。二、再延長工作時間在二小時以內者，按平日每小時工資額加給三分之二以上。三、依第三十二條第四項規定，延長工作時間者，按平日每小時工資額加倍發給。雇主使勞工於第三十六條所定休息日工作，工作時間在二小時以內者，其工資按平日每小時工資額另再加給一又三分之一以上；工作二小時後再繼續工作者，按平日每小時工資額另再加給一又三分之二以上。"
+  },
+  {
+   "url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=39",
+   "title": "勞動基準法 第 39 條 (Labor Standards Act, Art. 39)",
+   "content": "第三十六條所定之例假、休息日、第三十七條所定之休假及第三十八條所定之特別休假，工資應由雇主照給。雇主經徵得勞工同意於休假日工作者，工資應加倍發給。因季節性關係有趕工必要，經勞工或工會同意照常工作者，亦同。"
+  },
+  {
+   "url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=40",
+   "title": "勞動基準法 第 40 條 (Labor Standards Act, Art. 40)",
+   "content": "因天災、事變或突發事件，雇主認有繼續工作之必要時，得停止第三十六條至第三十八條所定勞工之假期。但停止假期之工資，應加倍發給，並應於事後補假休息。前項停止勞工假期，應於事後二十四小時內，詳述理由，報請當地主管機關核備。"
+  },
+  {
+   "url": "https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/",
+   "title": "時薪制勞工的權益 (Ministry of Labor: rights of hourly workers)",
+   "content": "1.基本(最低)工資「時薪」，是否包含例假與休息日的照給工資？ 答：依勞動基準法規定，勞工每7日應有2日之休息，其中1日為例假，1日為休息日，並應由雇主照給例假及休息日工資（亦即雖無出勤義務，惟雇主仍應給付原約定之報酬），按日或按時計酬之勞工，依法亦有上開規定之適用；也就是說，雇主仍應給付部分工時勞工例假及休息日工資。 有鑑於實務上，部分雇主並未另行給付部分工時勞工例假或休息日工資，時生爭議，所以將本來就應由雇主負擔的「例假」、「休息日」工資，折入基本(最低)工資「時薪」中（現行為196元），以後遇有例假或休息日，只須給勞工休息，不必外加計給例假及休息日工資，以減少紛爭。 至於按日計酬約定之日薪，於法定正常工作時間內，如不低於每小時基本(最低)工資數額乘以工作時數之金額，比照按時計酬者辦理。 2.基本(最低)工資「時薪」為何不考慮折入國定假日之工資？ 答：勞動基準法有關國定假日規定之意旨在保障有出勤義務之勞工當日免於出勤而雇主工資應照給之權益，至原約定無出勤義務者，自無工資請求權。當天出勤者依現行法令本可取得加發一倍之工資，如一律折入現行12日國定假日後，將使無出勤義務者額外取得工資;國定假日當天出勤者卻無取得加倍工資，對勞工權益反有減損，有失衡平。 3.按時計酬者延長工作時間（加班）時，其延時工資（加班費）如何計算？ 答：按時計酬者係以其約定之每小時工資額（以不低於196元）為基礎，並依照勞動基準法第24條規定計算延時工資。"
+  },
+  {
+   "url": "https://www.mol.gov.tw/1607/28162/28166/28180/81521/81533/",
+   "title": "國定假日工資說明 (Ministry of Labor: holiday pay)",
+   "content": "國定假日出勤工資 原約定的工作日如果遇到國定假日，勞工不用出勤，工資照給。 雇主徵得勞工同意於休假日出勤，8小時以內部分，工資加倍發給。 超過8小時的部分，加班在2小時以內，按平日每小時工資額加給3分之1以上；再加班在2小時以內，按平日每小時工資額加給3分之2以上。"
+  },
+  {
+   "url": "https://www.mol.gov.tw/1607/1632/1633/99440/post",
+   "title": "115年『國慶日』連假三日，雇主應依法給假，出勤應給加班費 (Ministry of Labor, 2026-10-07)",
+   "content": "勞動部表示，依《勞動基準法》第 37條規定，內政部所定應放假之紀念日、節日、勞動節及其他中央主管機關指定應放假日，均應休假，工資照給。今（115）年10月10日（星期六）國慶日為國定假日，若該日為勞雇雙方原約定之工作日，雇主應給予勞工休假，當日工資照給。雇主如徵得勞工同意在國慶日當天出勤，工資應依法加倍發給。至於國慶日如適逢勞工「休息日」或「例假」，雇主應於其他工作日給予勞工補假一天，補假當天性質即為國定假日，勞工休假工資照給，如補假當日有出勤，工資亦應加倍發給。 勞動部進一步說明，今年「國慶日」在星期六，勞雇雙方如約定週一至週五為工作日、週六為休息日、週日為例假的出勤模式，因國慶日適逢休息日，應予補假，可於 10月9日(星期五)補假一日以形成3天連假。假設月薪為新臺幣(下同)36,000元的勞工（以36,000元÷30日÷8小時，推算平日每小時工資額為150元）出勤8小時，其各日出勤工資給付規定如下： 一、 10月9日（星期五）： 性質為國定假日，依《勞動基準法》第 39條規定，休假日出勤加倍發給工資，試算：150元×8小時＝1,200元 二、 10月10日（星期六）： 性質為休息日，依《勞動基準法》第 24條第2項有關休息日出勤加給之規定計算。試算：150元×2小時×4/3+150元×6小時×5/3＝1,900元 三、 10月11日（星期日）： 性質為例假，非有天災、事變或突發事件，不得使勞工於例假出勤工作。"
+  },
+  {
+   "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095",
+   "title": "紀念日及節日實施條例 (Act on Commemorative Days and Holidays)",
+   "content": "第 3 條 紀念日之名稱及日期如下： 一、中華民國開國紀念日：一月一日。 二、和平紀念日：二月二十八日。 三、國父逝世紀念日：三月十二日。 四、反侵略日：三月十四日。 五、民族平等紀念日：三月二十一日。 六、革命先烈紀念日：三月二十九日。 七、言論自由日：四月七日。 八、原住民族抵抗日：六月二十六日。 九、解嚴紀念日：七月十五日。 十、原住民族日：八月一日。 十一、終戰紀念日：八月十五日。 十二、八二三紀念日：八月二十三日。 十三、國家防災日：九月二十一日。 十四、孔子誕辰紀念日：九月二十八日。 十五、國慶日：十月十日。 十六、臺灣聯合國日：十月二十四日。 十七、臺灣光復暨金門古寧頭大捷紀念日：十月二十五日。 十八、國父誕辰紀念日：十一月十二日。 十九、行憲紀念日：十二月二十五日。 二十、全國客家日：十二月二十八日。 第 4 條 下列紀念日均放假一日，其餘均不放假： 一、中華民國開國紀念日。 二、和平紀念日。 三、孔子誕辰紀念日。 四、國慶日。 五、臺灣光復暨金門古寧頭大捷紀念日。 六、行憲紀念日。 第 5 條 節日之名稱及日期如下： 一、民俗節日： （一）春節：農曆一月一日。 （二）元宵節：農曆一月十五日。 （三）清明節：定於清明日。 （四）端午節：農曆五月五日。 （五）中元節：農曆七月十五日。 （六）中秋節：農曆八月十五日。 （七）重陽節：農曆九月九日。 （八）除夕：農曆十二月之末日。 （九）原住民族歲時祭儀：各該原住民族放假日期，由原住民族委員會參酌各該原住民族習俗及徵詢各該原住民族部落意見後公告，並刊登政府公報。 二、道教節：農曆一月一日。 三、消防節：一月十九日。 四、農民節：定於立春日。 五、婦女節：三月八日。 六、植樹節：三月十二日。 七、青年節：三月二十九日。 八、國際醫師節：三月三十日。 九、兒童節：四月四日。 十、佛陀誕辰日：農曆四月八日。 十一、勞動節：五月一日。 十二、國際護理師節：五月十二日。 十三、母親節：五月第二個星期日。 十四、環境日：六月五日。 十五、國家海洋日：六月八日。 十六、警察節：六月十五日。 十七、漁民節：七月一日。 十八、父親節：八月八日。 十九、祖父母節：八月第四個星期日。 二十、軍人節：九月三日。 二十一、國民體育日：九月九日。 二十二、教師節：九月二十八日。 二十三、海巡節：十一月八日。 二十四、中華文化復興節：十一月十二日。 二十五、身心障礙者日：十二月三日。 二十六、人權日：十二月十日。 二十七、移民日：十二月十八日。 二十八、其他由中央目的事業主管機關核定之日。 第 6 條 前條所列節日之放假依下列規定辦理： 一、除夕及春節：自農曆十二月末日之前一日至翌年一月三日，放假五日。 二、兒童節、清明節、勞動節、端午節、教師節及中秋節：均放假一日。 三、原住民族歲時祭儀：由原住民依其族別歲時祭儀擇定三日放假。 四、消防節及警察節：依主管機關規定放假。 五、軍人節：依國防部規定放假。 六、海巡節：依海洋委員會規定放假。 兒童節與清明節同一日時，於前一日放假。但逢星期四時，於後一日放假。 第一項以外之節日，均不放假。"
+  },
+  {
+   "url": "https://dol.ny.gov/minimum-wage-0",
+   "title": "Minimum Wage | Department of Labor (New York State)",
+   "content": "New York State Minimum Wage Overview Everyone working in New York State is entitled to receive the New York State hourly minimum wage rates. This rate varies depending on your region, and the type of work that you do. The easiest way to find your rate is to use the Minimum Wage Lookup Tool. New York State Minimum Wage Some industries have different wage rates than the general minimum wage: Tipped Workers ; Nail Salon Workers ; Home Healthcare Aides ; Various other industries . Location Minimum Wage as of 01/01/2027** Tipped Service Employees as of 01/01/2027* Tipped Food Service Workers as of 01/01/2027* New York City $17.00 $14.15 Cash Wage $2.85 Tip Credit $11.35 Cash Wage $5.65 Tip Credit Long Island & Westchester $17.00 $14.15 Cash Wage $2.85 Tip Credit $11.35 Cash Wage $5.65 Tip Credit Remainder of New York State $16.00 $13.30 Cash Wage $2.70 Tip Credit $10.70 Cash Wage $5.30 Tip Credit *Only hospitality employers are allowed to take credit from minimum wage. **For additional information about the minimum wage for home care aides, please view the Home Care Aide Minimum Wage fact sheet (P105). Minimum Wage Updates On January 1, 2027, New York’s minimum wage will stay the same. The minimum wage rates will be: $17.00 per hour in New York City, Long Island, and Westchester County $16.00 per hour in the rest of New York State Explanation: Under New York Law, minimum wage rates can increase each year based on inflation. However, the law also includes certain conditions—known as “off-ramps”—that can prevent an automatic increase. For 2027, the conditions for one of the off-ramps has been met. As a result, the minimum wage will not receive an inflation-based increase on January 1, 2027 . Exception: Home Care Minimum Wage The minimum wage for home care aides will increase on January 1, 2027 , to: $20.00 per hour in New York City, Long Island, and Westchester County $19.00 per hour in the rest of the state Explanation: This is because home care minimum wage rates are adjusted for inflation but are capped at $3.00 above the standard minimum wage . Governor Hochul’s Proposal Governor Hochul is proposing a change to the law’s “off-ramp” provisions that would allow workers to receive the inflation-based wage increase . You can learn more on the Governor’s website ."
+  },
+  {
+   "url": "https://dol.ny.gov/system/files/documents/2025/12/p700_12-25.pdf",
+   "title": "New York State Minimum Wage fact sheet P700 (12/25)",
+   "content": "NEW YORK STATE MINIMUM WAGE\r\nAS A WORKER, WHAT IS MY MINIMUM WAGE?\r\nFrom 01/01/2026 to 12/31/2026, the New York State basic minimum wage is:\r\nAS AN EMPLOYER, HOW DO I COMPLY WITH THE MINIMUM WAGE LAW?\r\nTo comply with minimum wage laws, employers should:\r\n• $17.00 per hour in New York City • $17.00 per hour in Long Island and Westchester County • $16.00 per hour in the Remainder of New York State\r\nAnd, the minimum wage for fast food workers* is:\r\n• $17.00 per hour in all of New York City, Long Island and Westchester County\r\n• $16.00 per hour in the rest of New York State\r\nPrivate sector employees in the state, including domestic workers (in most cases), must receive the basic minimum wage.\r\nSPECIAL CIRCUMSTANCES\r\nThe basic rate may change under rules known as “wage orders” that set minimum pay for jobs in:\r\n• The hospitality, building service and farming industries • All other industries and occupations\r\nThe wage orders set:\r\n• Hourly rates • Overtime rates\r\n• Credits for meals and lodging, if supplied by the employer\r\nThe Hospitality wage order sets lower hourly minimum pay rates if workers regularly receive tips. Wage orders are published on the Department of Labor website at www.labor.ny.gov/minimumwage.\r\nWhen workers take care of their own required uniforms, they must be paid an added amount over minimum wage.\r\nEmployees who do piecework should be paid at a rate that brings them to at least the basic minimum wage.\r\nA standard work week is 40 hours. If employees work any hours beyond that, then the employer must pay them at 1 ½ times the regular wage.\r\n• Determine who must be paid the minimum wage, as some occupations and categories of employees are specifically exempt.\r\n• Consider tips as part of the minimum wage for tipped employees.\r\n• Regularly review pay rates and working hours to ensure compliance.\r\n• Calculate wages based on hours worked and applicable minimum wage rates.\r\n• Ensure the NYS minimum wage poster is visible to all employees in the workplace.\r\nWHAT PENALTIES MAY EMPLOYERS FACE WHEN THEY VIOLATE MINIMUM WAGE LAWS?\r\nThe Labor Department helps collect back wages for workers who have not received the minimum wage. Employers that break the Minimum Wage Law may be subject to orders to pay:\r\n• Back wages • Interest\r\n• Liquidated damages • Fines\r\nThey may also be subject to criminal prosecution and penalties. The fines for violations can total up to 200 percent of the missing wages. They may also have to pay 16 percent interest on the unpaid wages.\r\nEmployers with questions or concerns about obeying the Minimum Wage Law can contact the Labor Department at 888-469-7365 for help, between 8 am and 5 pm, Monday through Friday.\r\n*A fast food worker is any person employed or permitted to work at, or for, a fast food establishment by any employer where such person’s job duties include at least one of the following: customer service, cooking, food or drink preparation, delivery, security, stocking supplies or equipment, cleaning, or routine maintenance.\r\nP700 (12/25)\r\nThe New York State Department of Labor is an Equal Opportunity Employer/Program. Auxiliary aides and services are available upon request and free of charge to individuals with disabilities TTY/TDD 711 or 1-800-662-1220 (English) / 1-877-662-4886."
+  }
+ ]
+}
