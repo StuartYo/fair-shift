@@ -65,7 +65,7 @@ describe("comparison tables", () => {
     const t = headlineTable(summary("mock"), [row(), row()]);
     expect(t).toContain("| Expected pay exactly right | 2/2 | not run | not run |");
     expect(t).toContain("n/a (demo mode)");
-    expect(caseTable([row()])).toContain("| tw-holiday-unpaid | main | NT$5,488 | NT$5,488 (correct) | 9 / 0 | not run | not run | not run | 196 |");
+    expect(caseTable([row()])).toContain("| tw-holiday-unpaid | main | NT$5,488 | NT$5,488 (correct) | n/a | 9 / 0 | not run | not run | not run | 196 |");
   });
 
   it("fills the baseline and quote-checks-off columns in live mode", () => {

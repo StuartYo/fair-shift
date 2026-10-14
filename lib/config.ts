@@ -63,9 +63,10 @@ export function limits() {
     perRunUsd: num("APP_PER_RUN_USD", 0.05),
     perIpPerHour: num("APP_PER_IP_PER_HOUR", 6),
     perIpPerDay: num("APP_PER_IP_PER_DAY", 20),
-    globalRunsPerDay: num("APP_GLOBAL_RUNS_PER_DAY", 300),
-    globalUsdPerDay: num("APP_GLOBAL_USD_PER_DAY", 2),
-    globalTavilyCreditsPerDay: num("APP_GLOBAL_TAVILY_CREDITS_PER_DAY", 300),
+    // Same values as the public demo's Vercel environment, so README, /api/status and the code agree.
+    globalRunsPerDay: num("APP_GLOBAL_RUNS_PER_DAY", 60),
+    globalUsdPerDay: num("APP_GLOBAL_USD_PER_DAY", 1.5),
+    globalTavilyCreditsPerDay: num("APP_GLOBAL_TAVILY_CREDITS_PER_DAY", 40),
   };
 }
 
@@ -104,4 +105,11 @@ export function modeNote(mode: Mode = currentMode()): string {
     .filter(Boolean)
     .join(" and ");
   return `Demo mode (no ${missing} yet): ${what} Live mode uses Nemotron on Nebius Token Factory and Tavily search.`;
+}
+
+/** Traditional Chinese version of the mode note, for the Chinese page. */
+export function modeNoteZh(mode: Mode = currentMode()): string {
+  if (mode === "live") return "線上模式：模型是 Nebius Token Factory 上的 Nemotron，官方網頁用 Tavily 即時取得。";
+  if (liveSearchWithMockModel()) return "示範模型、即時網頁：模型由腳本代替，跑同樣的工具和檢查，官方網頁是這次用 Tavily 即時取得的。計算和引文檢查都是真的程式。";
+  return "示範模式：模型由腳本代替，跑同樣的工具和檢查，官方網頁用的是存檔（2026-10-13、10-14 錄下）。計算和引文檢查都是真的程式。線上模式用的是 Nebius Token Factory 上的 Nemotron 和 Tavily 搜尋。";
 }

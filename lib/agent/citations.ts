@@ -32,6 +32,11 @@ export class DocStore {
     return this.docs.has(urlKey(url));
   }
 
+  /** The first full-page copy of a URL retrieved in this run (not a search snippet). */
+  page(url: string): RetrievedDoc | undefined {
+    return (this.docs.get(urlKey(url)) || []).find((d) => d.via.endsWith("extract"));
+  }
+
   all(): RetrievedDoc[] {
     return [...this.docs.values()].flat();
   }
@@ -47,7 +52,7 @@ export class DocStore {
     const ordered = [...list].sort((a, b) => Number(b.via.endsWith("extract")) - Number(a.via.endsWith("extract")));
     for (const d of ordered) {
       if (normalise(d.content).includes(q)) {
-        return { ok: true, citation: { url: d.url, title: d.title, quote: quote.trim(), verified: true, via: d.via } };
+        return { ok: true, citation: { url: d.url, title: d.title, quote: quote.trim(), verified: true, via: d.via, foundBy: d.foundBy } };
       }
     }
     // Same words on another page retrieved in this run: say where, so the model can fix the source_url.

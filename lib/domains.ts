@@ -6,6 +6,7 @@ export const DEFAULT_ALLOWED_DOMAINS: readonly string[] = [
   "mol.gov.tw", // Taiwan Ministry of Labor
   "law.moj.gov.tw", // Taiwan laws database
   "dgpa.gov.tw", // Taiwan DGPA: official holiday calendars, which quote the holiday act
+  "ey.gov.tw", // Taiwan Executive Yuan: cabinet news releases (minimum wage approval status)
   "dol.ny.gov", // New York State Department of Labor
   "labor.ny.gov",
   "dol.gov", // US Department of Labor

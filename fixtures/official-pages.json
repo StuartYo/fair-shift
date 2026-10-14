@@ -1,5 +1,5 @@
 {
- "_note": "Recorded fixtures for demo mode. Text captured directly from the official URLs listed (HTML stripped to text; PDFs via pdftotext): 2026-10-13, plus the two NYS wage orders on 2026-10-14. The Labor Standards Act and its Enforcement Rules (MOL law database) and the DGPA calendar pages (which quote 紀念日及節日實施條例) were recorded from Tavily extract on 2026-10-14. Single-article pages of the Labor Standards Act (Art. 24, 39, 40) and its Enforcement Rules (Art. 20-1) were recorded from Tavily extract on 2026-10-14 and keep only the article text. Long pages keep only the sections Fair Shift uses, verbatim, with [...] where text was left out. Used only when NEBIUS_API_KEY or TAVILY_API_KEY is missing. Live mode never reads this file.",
+ "_note": "Recorded fixtures for demo mode. Text captured directly from the official URLs listed (HTML stripped to text; PDFs via pdftotext): 2026-10-13, plus the two NYS wage orders on 2026-10-14. The Labor Standards Act and its Enforcement Rules (MOL law database) and the DGPA calendar pages (which quote 紀念日及節日實施條例) were recorded from Tavily extract on 2026-10-14. Single-article pages of the Labor Standards Act (Art. 24, 39, 40) and its Enforcement Rules (Art. 20-1) were recorded from Tavily extract on 2026-10-14 and keep only the article text. Long pages keep only the sections Fair Shift uses, verbatim, with [...] where text was left out. Used only when NEBIUS_API_KEY or TAVILY_API_KEY is missing. Live mode never reads this file. The Executive Yuan news release of 2026-10-01 on the 2027 minimum wage (ey.gov.tw) was recorded with Tavily extract on 2026-10-14.",
  "recordedOn": "2026-10-13",
  "docs": [
   {
@@ -90,6 +90,12 @@
    "url": "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014931&flno=20-1",
    "title": "勞動部勞動法令查詢系統-條文內容",
    "content": "法規名稱：\n勞動基準法施行細則 (民國 113 年 03 月 27 日修正) 英\n第 20-1 條 \n本法所定雇主延長勞工工作之時間如下：\n一、每日工作時間超過八小時或每週工作總時數超過四十小時之部分。但\n依本法第三十條第二項、第三項或第三十條之一第一項第一款變更工\n作時間者，為超過變更後工作時間之部分。\n二、勞工於本法第三十六條所定休息日工作之時間。",
+   "recordedOn": "2026-10-14"
+  },
+  {
+   "url": "https://www.ey.gov.tw/Page/9277F759E41CCD91/59848ab4-676b-41b7-898e-9f5207325f0a",
+   "title": "卓揆：最低工資連11年調漲 明年月薪30,900元、時薪205元 逾261萬名勞工受惠 (行政院全球資訊網-本院一般新聞)",
+   "content": "行政院全球資訊網\n行動創新執政一週年成果\n\n本院新聞\n日期：115-10-01\n資料來源：新聞傳播處\n行政院長卓榮泰今（1）日在行政院會聽取勞動部「最低工資調整」報告後表示，依據最低工資審議會結果，明（2027）年最低工資將再度調升，月薪從2萬9,500元，調增至3萬900元，時薪也由196元調增至205元。卓院長強調，政府自2016年開始，連續11年調漲最低工資，月薪總調幅近54%、時薪總調幅達71%。本次月薪調增金額更是自2016年以來最高，預估將有超過261萬名勞工受惠，其中本國勞工占比84%。\n卓院長表示，今（2026）年臺灣經濟成長率預估將達11.05%，可望創下39年來新高，這是全體國人、產業及勞工等各界共同努力的成果。在調升最低工資的同時，政府深知傳統產業與中小企業所面臨的辛苦及困境，中小企業占全國企業98%以上，提供全國近8成就業機會，因此政府會繼續加強推動「支持及壯大中小微企業方案」，實質鼓勵企業照顧基層員工，全面帶動百工百業繁榮發展。\n卓院長強調，近期受到中東戰事、低價傾銷、原物料成本等影響的製造業與服務業，請經濟部與勞動部共同研議，給予有效協助，並儘速公布配套措施，以達到政府「大力挺勞工、大力挺產業」的目標。政府除了持續照顧基層勞工，未來也將持續透過不同政策工具，鼓勵企業為勞工加薪，請各部會繼續努力，造福國人、照顧人民。\n\n通過AA無障礙網頁檢測",
    "recordedOn": "2026-10-14"
   }
  ]

@@ -23,6 +23,13 @@ export interface EvalRow {
   codeFallback: number;
   parseSource?: "model" | "rules";
   stoppedEarly?: string;
+  /** The right answer is to ask for input (no amount); see EvalCase.expected.needsInput. */
+  truthNeedsInput?: string;
+  /** Wall-clock seconds for the Fair Shift run. */
+  fairShiftSec?: number;
+  /** Tavily searches in the Fair Shift run, and whether a result changed a fact or added a page. */
+  searchCalls?: number;
+  searchContributed?: boolean;
   /** Same agent and tools, quote checks and code fallback turned off. */
   noVerify?: null | { expectedTotal: number; correct: boolean; costUsd: number; recorded: number };
   baseline: null | {
@@ -58,8 +65,13 @@ const tolOf = (r: EvalRow) => (r.currency === "TWD" ? 1 : 0.01);
 export function headlineTable(s: EvalSummary, rows: EvalRow[]): string {
   const n = rows.length;
   const fsOk = rows.filter((r) => r.fairShiftCorrect).length;
-  const fsShort = rows.filter((r) => r.fairShiftShortfall !== undefined && Math.abs(r.fairShiftShortfall - r.truthShortfall) <= tolOf(r)).length;
-  const fsMw = rows.filter((r) => r.fairShiftMinWage === r.truthMinWage).length;
+  // A case whose right answer is "ask for the hourly rate" counts as right only if no amount was given.
+  const fsShort = rows.filter((r) =>
+    r.truthNeedsInput ? r.fairShiftCorrect : r.fairShiftShortfall !== undefined && Math.abs(r.fairShiftShortfall - r.truthShortfall) <= tolOf(r),
+  ).length;
+  const withRate = rows.filter((r) => !r.truthNeedsInput);
+  const nr = withRate.length;
+  const fsMw = withRate.filter((r) => r.fairShiftMinWage === r.truthMinWage).length;
   const fsCost = rows.reduce((a, r) => a + r.fairShiftCostUsd, 0) / Math.max(1, n);
   const b = rows.map((r) => r.baseline).filter((x): x is NonNullable<EvalRow["baseline"]> => !!x);
   const nv = rows.map((r) => r.noVerify).filter((x): x is NonNullable<EvalRow["noVerify"]> => !!x);
@@ -72,7 +84,7 @@ export function headlineTable(s: EvalSummary, rows: EvalRow[]): string {
     `|---|---|---|---|`,
     `| Expected pay exactly right | ${fsOk}/${n} | ${nvCol((x) => `${x.filter((y) => y.correct).length}/${n}`)} | ${baseCol((x) => `${x.filter((y) => y.amountCorrect).length}/${n}`)} |`,
     `| Underpaid amount exactly right | ${fsShort}/${n} | n/a | ${baseCol((x) => `${x.filter((y) => y.shortfallCorrect).length}/${n}`)} |`,
-    `| Used the minimum wage in force on the shift dates | ${fsMw}/${n} | n/a | ${baseCol((x) => `${x.filter((y) => y.minWageCorrect).length}/${n}`)} |`,
+    `| Used the minimum wage in force on the shift dates${nr < n ? ` (${nr} cases with an hourly rate)` : ""} | ${fsMw}/${nr} | n/a | ${baseCol(() => `${withRate.filter((r) => r.baseline?.minWageCorrect).length}/${nr}`)} |`,
     `| Cited sources that contain the number used | ${rows.reduce((a, r) => a + r.fairShiftCitations, 0)} quotes, all checked verbatim | not checked | ${baseCol(() => `${verified} of ${given} (${pct(verified, given)})`)} |`,
     `| Average model cost per check | ${s.mode === "live" ? `US$${fsCost.toFixed(4)}` : "n/a (demo mode)"} | ${nvCol((x) => (s.mode === "live" ? `US$${(x.reduce((a, y) => a + y.costUsd, 0) / n).toFixed(4)}` : "n/a (demo mode)"))} | ${baseCol((x) => `US$${(x.reduce((a, y) => a + y.costUsd, 0) / n).toFixed(4)}`)} |`,
   ];
@@ -87,12 +99,23 @@ export function recordedLine(rows: EvalRow[]): string {
   return `Rule and holiday records: ${agent} made by the agent through its tools, ${fb} filled by code fallback from the retrieved text (${pct(agent, agent + fb)} by the agent). In ${allAgent} of ${rows.length} cases the agent recorded everything itself.`;
 }
 
+/** Seconds per live check (median and slowest) and how often Tavily search changed something. */
+export function speedSearchLine(rows: EvalRow[]): string {
+  const secs = rows.map((r) => r.fairShiftSec).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
+  const med = secs.length ? secs[Math.floor((secs.length - 1) / 2)] : undefined;
+  const searches = rows.reduce((a, r) => a + (r.searchCalls ?? 0), 0);
+  const contributed = rows.filter((r) => r.searchContributed).length;
+  const speed = med === undefined ? "Time per check: not measured" : `Time per Fair Shift check: median ${med.toFixed(1)} s, slowest ${secs.at(-1)!.toFixed(1)} s`;
+  return `${speed}. Tavily search: ${searches} searches, which changed a fact or added a page in ${contributed} of ${rows.length} cases.`;
+}
+
 /** Accuracy per group of cases. */
 export function groupLine(rows: EvalRow[]): string {
   const groups: [string, string][] = [
     ["main", "main"],
     ["messy", "messy formats"],
     ["heldout", "held-out"],
+    ["realstyle", "real-style"],
   ];
   return groups
     .map(([g, label]) => {
@@ -106,16 +129,18 @@ export function groupLine(rows: EvalRow[]): string {
 /** One row per case. */
 export function caseTable(rows: EvalRow[]): string {
   const out = [
-    `| Case | Group | Truth | Fair Shift | Agent / fallback records | Quote checks off | Pure model | Pure model min. wage | Truth min. wage |`,
-    `|---|---|---|---|---|---|---|---|---|`,
+    `| Case | Group | Truth | Fair Shift | Seconds | Agent / fallback records | Quote checks off | Pure model | Pure model min. wage | Truth min. wage |`,
+    `|---|---|---|---|---|---|---|---|---|---|`,
   ];
   for (const r of rows) {
     const b = r.baseline;
     const base = b ? (b.error ? `error: ${b.error.slice(0, 40)}` : `${money(b.expectedTotal, r.currency)} (${mark(b.amountCorrect)})`) : "not run";
     const bmw = b && !b.error ? `${b.minWageUsed ?? "none"} (${mark(b.minWageCorrect)})` : "not run";
     const nv = r.noVerify ? `${money(r.noVerify.expectedTotal, r.currency)} (${mark(r.noVerify.correct)})` : "not run";
+    const ask = r.truthNeedsInput ? "ask for an hourly rate" : undefined;
+    const fs = ask ? (r.fairShiftCorrect ? "asked (correct)" : `${money(r.fairShift, r.currency)} (wrong)`) : `${money(r.fairShift, r.currency)} (${mark(r.fairShiftCorrect)})`;
     out.push(
-      `| ${r.case} | ${r.group ?? "main"} | ${money(r.truth, r.currency)} | ${money(r.fairShift, r.currency)} (${mark(r.fairShiftCorrect)}) | ${r.agentRecorded} / ${r.codeFallback} | ${nv} | ${base} | ${bmw} | ${r.truthMinWage} |`,
+      `| ${r.case} | ${r.group ?? "main"} | ${ask ?? money(r.truth, r.currency)} | ${fs} | ${r.fairShiftSec?.toFixed(1) ?? "n/a"} | ${r.agentRecorded} / ${r.codeFallback} | ${nv} | ${base} | ${bmw} | ${ask ? "n/a" : r.truthMinWage} |`,
     );
   }
   return out.join("\n");
@@ -136,6 +161,7 @@ export function evalMarkdown(s: EvalSummary, rows: EvalRow[]): string {
     ``,
     `- ${recordedLine(rows)}`,
     `- Fair Shift by group: ${groupLine(rows)}.`,
+    `- ${speedSearchLine(rows)}`,
     ``,
     `## Per case`,
     ``,

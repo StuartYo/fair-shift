@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { groupLine, headlineTable, recordedLine, type EvalRow, type EvalSummary } from "./report";
+import { groupLine, headlineTable, recordedLine, speedSearchLine, type EvalRow, type EvalSummary } from "./report";
 
 // The results block in README.md is generated from the newest live result file.
 // npm run readme writes it; tests/readme-numbers.test.ts fails if they differ.
@@ -27,6 +27,7 @@ export function readmeBlock(file: string, summary: EvalSummary, rows: EvalRow[])
     ``,
     `- ${recordedLine(rows)}`,
     `- Fair Shift by group: ${groupLine(rows)}.`,
+    `- ${speedSearchLine(rows)}`,
     END,
   ].join("\n");
 }

@@ -1,4 +1,4 @@
-import { isHospitality, isTipped, NY_JOB_LABEL, NY_REGION_LABEL, specByKey } from "./catalog";
+import { isHospitality, isTipped, NY_JOB_LABEL, NY_JOB_LABEL_ZH, NY_REGION_LABEL, NY_REGION_LABEL_ZH, specByKey } from "./catalog";
 import { LUNAR_YEARS } from "./holidays-tw";
 import type {
   Computation,
@@ -233,6 +233,9 @@ export function compute(input: {
     if (mw?.status === "pending_approval") {
       note = [note, "Minimum wage for this date is decided but still pending approval."].filter(Boolean).join(" ");
       noteZh = [noteZh, "這天適用的最低工資已決定，尚待行政院核定。"].filter(Boolean).join("");
+    } else if (mw?.status === "cabinet_announced") {
+      note = [note, `Minimum wage for this date: the Executive Yuan announced it on ${mw.statusDate}; formal notice not found yet.`].filter(Boolean).join(" ");
+      noteZh = [noteZh, `這天適用的最低工資：行政院會 ${mw.statusDate} 已宣布，正式公告還沒看到。`].filter(Boolean).join("");
     }
     const amount = seg.hours * rate * mult;
     base += seg.hours * (stated ?? rate);
@@ -291,6 +294,11 @@ export function compute(input: {
         ? `每天超過 8 小時、或每週超過 ${weekly.value} 小時的部分算延長工時（加班）。每週從${WEEKDAY_ZH[startDay]}起算。休息日與國定假日的工時另有算法，不算進 ${weekly.value} 小時。沒有檢查變形工時。`
         : "這次沒有取得「每週 40 小時」的條文，所以只按每天超過 8 小時算加班。",
     );
+    if (shifts.some((s) => s.dayType === "holiday" && s.hours > 8))
+      assume(
+        "Holiday hours beyond 8 are counted as overtime under LSA Art. 24 (plus 1/3 for hours 9-10, plus 2/3 after), as the Ministry of Labor's Q&A on national holidays says (https://www.mol.gov.tw/1607/28690/2282/2284/2292/7239, read 2026-10-14).",
+        "國定假日上班超過 8 小時的部分，依勞動部國定假日問答，算延長工時、按勞基法第 24 條加給（第 9 至 10 小時加給三分之一，之後加給三分之二）。出處：https://www.mol.gov.tw/1607/28690/2282/2284/2292/7239（2026-10-14 查閱）。",
+      );
     if (shifts.some((s) => s.dayTypeSource === "default"))
       assume(
         "Days not marked otherwise are treated as normal workdays. If one of them was your rest day, more is owed.",
@@ -316,8 +324,8 @@ export function compute(input: {
         cum += s.hours;
         if (!tipped) {
           const { rate, mw } = rateFor(s);
-          push(s, { hours: regular, key: null, label: "Regular hours" }, rate, mw);
-          push(s, { hours: ot, key: "ny.ot_weekly", label: "Overtime (over 40 in the week)" }, rate, mw);
+          push(s, { hours: regular, key: null, label: "Regular hours", labelZh: "正常工時" }, rate, mw);
+          push(s, { hours: ot, key: "ny.ot_weekly", label: "Overtime (over 40 in the week)", labelZh: "加班（本週超過 40 小時）" }, rate, mw);
           continue;
         }
         // Tipped (12 NYCRR 146-1.3 and 146-1.4): the employer pays a cash wage
@@ -334,8 +342,22 @@ export function compute(input: {
         if (stated !== undefined && stated < cashMin) belowMin += s.hours * (cashMin - stated);
         const keys: RuleKey[] = [...(mw ? [mw.key] : []), ...(tc ? (["ny.tip_credit"] as RuleKey[]) : [])];
         const note = tc ? undefined : "Tip credit rule not retrieved: assumed the credit taken was allowed.";
+        const noteZh = tc ? undefined : "沒有取得小費抵減的條文，先假設雇主扣的抵減合法。";
         if (regular > 0) {
-          lines.push({ shiftId: s.id, date: s.date, label: "Regular hours (cash wage after tip credit)", hours: regular, baseRate: regularRate, multiplier: 1, deduction: credit, amount: regular * cash, ruleKeys: keys, note });
+          lines.push({
+            shiftId: s.id,
+            date: s.date,
+            label: "Regular hours (cash wage after tip credit)",
+            labelZh: "正常工時（扣掉小費抵減後的現金工資）",
+            hours: regular,
+            baseRate: regularRate,
+            multiplier: 1,
+            deduction: credit,
+            amount: regular * cash,
+            ruleKeys: keys,
+            note,
+            noteZh,
+          });
           base += regular * (stated ?? cash);
           topUp += regular * (cash - (stated ?? cash));
         }
@@ -348,6 +370,7 @@ export function compute(input: {
             shiftId: s.id,
             date: s.date,
             label: "Overtime (over 40 in the week), tipped rate",
+            labelZh: "加班（本週超過 40 小時），小費員工算法",
             hours: ot,
             baseRate: regularRate,
             multiplier: mult,
@@ -355,6 +378,7 @@ export function compute(input: {
             amount,
             ruleKeys: [...keys, ...(r ? [r.key] : [])],
             note: r ? undefined : "Rule not retrieved: counted at straight time only.",
+            noteZh: r ? undefined : "沒有取得這條規定的官方條文，只按原時薪計算。",
           });
           base += ot * (stated ?? cash);
           topUp += ot * (cash - (stated ?? cash));
@@ -379,6 +403,7 @@ export function compute(input: {
           shiftId: shifts.at(-1)?.id ?? "",
           date: shifts.at(-1)?.date ?? "",
           label: "Tips plus cash wage below the minimum wage: employer makes up the difference",
+          labelZh: "小費加現金工資不到最低工資：雇主要補足差額",
           hours,
           baseRate: gap / hours,
           multiplier: 1,
@@ -389,6 +414,7 @@ export function compute(input: {
         problems.push({
           kind: "below_min_wage",
           message: "Your tips plus the cash wage came to less than the minimum wage for the hours worked. The employer must make up the difference.",
+          messageZh: "小費加上現金工資，沒有達到工時乘以最低工資，雇主要補足差額。",
           amount: round(gap, currency),
           ruleKeys: ["ny.tip_credit", "ny.min_wage_hourly"],
         });
@@ -413,14 +439,19 @@ export function compute(input: {
         const dayHours = ds.reduce((a, s) => a + s.hours, 0);
         let due = mw.value;
         let note: string | undefined;
+        let noteZh: string | undefined;
         if (!hosp) {
           // 142-2.4: one hour at the minimum wage "in addition to the minimum wage
           // required": owed only to the extent day pay is below minimum wage x (hours + 1).
           const dayPay = dayHours * Math.max(stated ?? 0, mw.value);
           due = Math.max(0, mw.value * (dayHours + 1) - dayPay);
           note = "Only the part not already covered by pay above the minimum wage.";
+          noteZh = "只算時薪高於最低工資的部分還沒補到的金額。";
           if (due <= 0) {
-            assume(`${date}: the workday spread was ${spreadHours} hours, but pay above the minimum wage already covers the extra hour.`);
+            assume(
+              `${date}: the workday spread was ${spreadHours} hours, but pay above the minimum wage already covers the extra hour.`,
+              `${date}：從上班到下班跨了 ${spreadHours} 小時，但時薪高於最低工資，已經涵蓋多付的那 1 小時。`,
+            );
             continue;
           }
         }
@@ -428,23 +459,31 @@ export function compute(input: {
           shiftId: ds.at(-1)!.id,
           date,
           label: `Spread of hours ${spreadHours} (over ${spread.value}): one extra hour at the minimum wage`,
+          labelZh: `工時跨度 ${spreadHours} 小時（超過 ${spread.value}）：多付 1 小時最低工資`,
           hours: 1,
           baseRate: due,
           multiplier: 1,
           amount: due,
           ruleKeys: [mw.key, spreadKey],
           note,
+          noteZh,
         });
         premiums += due;
       }
     }
 
-    assume(`New York: workweek starts on ${WEEKDAY[startDay]}. Region: ${NY_REGION_LABEL[region]}. Job: ${NY_JOB_LABEL[job]}.`);
+    assume(
+      `New York: workweek starts on ${WEEKDAY[startDay]}. Region: ${NY_REGION_LABEL[region]}. Job: ${NY_JOB_LABEL[job]}.`,
+      `紐約：每週從${WEEKDAY_ZH[startDay]}起算。地區：${NY_REGION_LABEL_ZH[region]}。工作類型：${NY_JOB_LABEL_ZH[job]}。`,
+    );
     if (tipped) {
-      assume("Tipped job: the hourly rate on the payslip is read as your cash wage before tips, and the employer is assumed to take the full tip credit.");
-      if (payslip.tips === undefined) assume("No tips amount on the payslip, so it is assumed your tips covered the tip credit.");
+      assume(
+        "Tipped job: the hourly rate on the payslip is read as your cash wage before tips, and the employer is assumed to take the full tip credit.",
+        "小費工作：薪資單上的時薪當作不含小費的現金工資，並假設雇主扣了全額的小費抵減。",
+      );
+      if (payslip.tips === undefined) assume("No tips amount on the payslip, so it is assumed your tips covered the tip credit.", "薪資單上沒有小費金額，所以假設你的小費足夠抵減。");
     }
-    assume(hosp ? "Call-in pay is not checked." : "Split shifts and call-in pay are not checked.");
+    assume(hosp ? "Call-in pay is not checked." : "Split shifts and call-in pay are not checked.", hosp ? "沒有檢查臨時叫班的報到工資。" : "沒有檢查拆班與臨時叫班的報到工資。");
   }
 
   const expectedTotal = round(lines.reduce((a, l) => a + l.amount, 0), currency);
@@ -465,7 +504,7 @@ export function compute(input: {
     problems.push({
       kind: "below_min_wage",
       message: tipped ? "The cash wage is below the minimum cash wage for tipped workers on some shifts." : "The stated hourly rate is below the minimum wage for some shifts.",
-      messageZh: "薪資單上的時薪低於當時的最低工資。",
+      messageZh: tipped ? "現金工資低於小費員工的最低現金工資。" : "薪資單上的時薪低於當時的最低工資。",
       amount: round(belowMin, currency),
       ruleKeys: [jurisdiction === "TW" ? "tw.min_wage_hourly" : tipped ? "ny.tip_credit" : "ny.min_wage_hourly"],
     });

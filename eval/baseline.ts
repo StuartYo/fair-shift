@@ -18,7 +18,8 @@ export function baselineUser(c: EvalCase, today: string): string {
     c.input.jurisdiction === "TW"
       ? "Taiwan"
       : `New York State, ${NY_REGION_LABEL[c.input.nyRegion ?? "nyc"]}. Job: ${NY_JOB_LABEL[c.input.nyJob ?? "general"]}`;
-  return `Today's date: ${today}\nJurisdiction: ${where}\n\nSCHEDULE:\n${c.input.scheduleText}\n\nPAYSLIP:\n${c.input.payslipText}`;
+  const tips = c.input.nyTipsInGross === "yes" ? "\nThe worker says the gross pay on the payslip includes tips." : "";
+  return `Today's date: ${today}\nJurisdiction: ${where}${tips}\n\nSCHEDULE:\n${c.input.scheduleText}\n\nPAYSLIP:\n${c.input.payslipText}`;
 }
 
 export interface BaselineResult {
@@ -104,9 +105,11 @@ export async function scoreBaseline(c: EvalCase, b: BaselineResult, search?: Sea
     }
   }
   const close = (a: number | undefined, t: number) => a !== undefined && Number.isFinite(a) && Math.abs(a - t) <= tol;
+  // When the right answer is to ask (a monthly salary, no hourly rate), giving no amount is right.
+  const asked = !!c.expected.needsInput && !b.error && (b.expectedTotal === undefined || !Number.isFinite(b.expectedTotal));
   return {
-    amountCorrect: close(b.expectedTotal, c.expected.expectedTotal),
-    shortfallCorrect: close(b.shortfall, c.expected.shortfall),
+    amountCorrect: c.expected.needsInput ? asked : close(b.expectedTotal, c.expected.expectedTotal),
+    shortfallCorrect: c.expected.needsInput ? asked : close(b.shortfall, c.expected.shortfall),
     minWageCorrect: b.minWageUsed !== undefined && Math.abs(b.minWageUsed - c.expected.minWageUsed) < 0.005,
     sourcesVerified: verified,
     sourcesGiven: b.sources.length,

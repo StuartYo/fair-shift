@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EVAL_CASES } from "../eval/cases";
 import { HELDOUT_CASES } from "../eval/heldout";
+import { REALSTYLE_CASES } from "../eval/realstyle";
 import fixtures from "../fixtures/official-pages.json";
 import { MockProvider } from "../lib/llm/mock";
 import { FixtureSearchProvider, type FixtureSet } from "../lib/search/fixture";
@@ -12,7 +13,7 @@ import { runFairShift } from "../lib/wage/run";
 // rule used carries a verified citation.
 
 describe("eval cases through the full pipeline (demo mode)", () => {
-  for (const c of [...EVAL_CASES, ...HELDOUT_CASES]) {
+  for (const c of [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES]) {
     it(`${c.id}: ${c.title}`, async () => {
       const r = await runFairShift(c.input, {
         llm: new MockProvider(rulesMockScript()),
@@ -21,6 +22,15 @@ describe("eval cases through the full pipeline (demo mode)", () => {
         modeNote: "test",
         today: "2026-10-13",
       });
+      if (c.expected.needsInput) {
+        // The right answer is to ask: no amount, no agent, no model or search spend.
+        expect(r.needsInput?.kind).toBe(c.expected.needsInput);
+        expect(r.computation.lines).toEqual([]);
+        expect(r.computation.shortfall).toBeUndefined();
+        expect(r.trace.some((t) => t.name === "agent")).toBe(false);
+        return;
+      }
+      expect(r.needsInput).toBeUndefined();
       expect(r.shifts.length).toBe(c.expected.shifts);
       expect(r.computation.workedHours).toBe(c.expected.workedHours);
       expect(r.computation.expectedTotal).toBeCloseTo(c.expected.expectedTotal, 2);
@@ -30,7 +40,8 @@ describe("eval cases through the full pipeline (demo mode)", () => {
       expect(Math.max(...mw)).toBeGreaterThanOrEqual(c.expected.minWageUsed);
       const mwRule = r.rules.find((x) => x.key.endsWith("min_wage_hourly") && x.value === c.expected.minWageUsed);
       expect(mwRule).toBeTruthy();
-      if (c.expected.minWagePending) expect(mwRule!.status).toBe("pending_approval");
+      // Decided but not yet formally announced: pending, or (when search finds the cabinet's release) cabinet_announced.
+      if (c.expected.minWagePending) expect(["pending_approval", "cabinet_announced"]).toContain(mwRule!.status);
       for (const d of c.expected.holidayDates || []) expect(r.shifts.find((s) => s.date === d)?.dayType).toBe("holiday");
       const usedKeys = new Set(r.computation.lines.flatMap((l) => l.ruleKeys));
       for (const k of c.expected.ruleKeys || []) expect(usedKeys.has(k), `rule ${k} used`).toBe(true);

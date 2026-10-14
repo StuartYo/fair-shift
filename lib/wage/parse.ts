@@ -16,12 +16,17 @@ export function isValidDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+const PM_WORDS = ["pm", "下午", "晚上", "傍晚"];
+const AM_WORDS = ["am", "上午", "早上", "清晨", "凌晨", "半夜"];
+
 function toMinutes(h: number, m: number, ampm?: string): number {
   let hh = h;
   if (ampm) {
     const a = ampm.toLowerCase();
-    if ((a === "pm" || a === "下午" || a === "晚上") && hh < 12) hh += 12;
-    if ((a === "am" || a === "上午" || a === "早上") && hh === 12) hh = 0;
+    if (PM_WORDS.includes(a) && hh < 12) hh += 12;
+    if (AM_WORDS.includes(a) && hh === 12) hh = 0;
+    // 中午12點 = 12:00, 中午1點 = 13:00
+    if (a === "中午" && hh < 11) hh += 12;
   }
   return hh * 60 + m;
 }
@@ -34,7 +39,7 @@ export function shiftHours(start: string, end: string, breakMinutes: number): nu
   return Math.max(0, Math.round(((mins - breakMinutes) / 60) * 100) / 100);
 }
 
-const TIME = String.raw`(上午|下午|晚上|早上)?\s*(\d{1,2})(?:[:：](\d{2})|點(半|\d{1,2})?分?)?\s*(am|pm)?`;
+const TIME = String.raw`(上午|下午|晚上|早上|中午|傍晚|清晨|凌晨|半夜)?\s*(\d{1,2})(?:[:：](\d{2})|點(半|\d{1,2})?分?)?\s*(am|pm)?`;
 
 function minutePart(colon?: string, cn?: string): number {
   if (colon) return Number(colon);
@@ -77,8 +82,11 @@ const EN_WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 /** Weekday named on a line without a date: 週五, 星期六, 禮拜天, fri, Saturday. */
 export function findWeekday(line: string): number | null {
-  const m = line.match(/(?:週|周|星期|禮拜)\s*([日天一二三四五六])/);
+  const m = line.match(/(?:週|周|星期|禮拜|礼拜)\s*([日天一二三四五六])/);
   if (m) return ZH_WEEKDAY[m[1]];
+  // A bare weekday at the start of a line, as managers type it: "六 12-20", "(六) 12-20"
+  const b = line.match(/^\s*[(（]?([日一二三四五六])[)）]?(?=[\s:：,，、]|\d)/);
+  if (b) return ZH_WEEKDAY[b[1]];
   const e = line.match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?(?![a-z])/i);
   if (e) return EN_WEEKDAY.indexOf(e[1].toLowerCase());
   return null;
@@ -95,6 +103,8 @@ export interface RawShift {
 
 export interface ScheduleParse {
   shifts: RawShift[];
+  /** Date range found in the schedule text itself (header line), if any. */
+  range?: { start: string; end: string };
   /** Lines that look like a shift (they have a time range) but could not be read, with the reason. */
   unread: { line: string; reason: "no_date" | "weekday_ambiguous" }[];
 }
@@ -113,6 +123,32 @@ function datesInPeriod(period?: { start?: string; end?: string }): string[] {
 }
 
 /**
+ * A date range written in the schedule itself, e.g. a header line
+ * "店長：10/5~10/11這週班表" or "下週(10/19-10/25)排班如下". Weekday-only lines
+ * take their date from this range before the payslip period.
+ */
+export function scheduleDateRange(text: string, year: number): { start: string; end: string } | undefined {
+  const re = /(?:(\d{4})[-/])?(\d{1,2})[/月](\d{1,2})日?\s*(?:\([^)]{1,3}\)|（[^）]{1,3}）)?\s*(?:~|～|-|–|—|至|到)\s*(?:(\d{4})[-/])?(\d{1,2})[/月](\d{1,2})日?/;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.normalize("NFKC");
+    const m = line.match(re);
+    if (!m) continue;
+    const y1 = m[1] ? Number(m[1]) : year;
+    let y2 = m[4] ? Number(m[4]) : y1;
+    const start = `${y1}-${pad(+m[2])}-${pad(+m[3])}`;
+    let end = `${y2}-${pad(+m[5])}-${pad(+m[6])}`;
+    if (!m[4] && end < start) {
+      y2 = y1 + 1; // 12/28~1/3
+      end = `${y2}-${pad(+m[5])}-${pad(+m[6])}`;
+    }
+    if (!isValidDate(start) || !isValidDate(end)) continue;
+    const days = (Date.parse(end) - Date.parse(start)) / 86_400_000;
+    if (days >= 0 && days <= 31) return { start, end };
+  }
+  return undefined;
+}
+
+/**
  * Rule-based schedule parser. Lines with a weekday but no date ("週五 18-22")
  * are placed in the pay period when exactly one day of the period falls on
  * that weekday; otherwise they are reported as unread, never guessed.
@@ -120,7 +156,8 @@ function datesInPeriod(period?: { start?: string; end?: string }): string[] {
 export function parseScheduleDetailed(text: string, year: number, period?: { start?: string; end?: string }): ScheduleParse {
   const shifts: RawShift[] = [];
   const unread: ScheduleParse["unread"] = [];
-  const periodDates = datesInPeriod(period);
+  const own = scheduleDateRange(text, year);
+  const periodDates = datesInPeriod(own ?? period);
   for (const original of text.split(/\r?\n/)) {
     const line = original.normalize("NFKC");
     let date = findDate(line, year);
@@ -139,7 +176,9 @@ export function parseScheduleDetailed(text: string, year: number, period?: { sta
     const startAmpm = r[1] || r[5];
     let endAmpm = r[6] || r[10];
     // "下午5點-10點" -> the end inherits the afternoon marker
-    if (!endAmpm && (r[1] === "下午" || r[1] === "晚上") && Number(r[7]) < 12) endAmpm = r[1];
+    if (!endAmpm && r[1] && PM_WORDS.includes(r[1]) && Number(r[7]) < 12) endAmpm = r[1];
+    // "中午12點到5點" -> 17:00
+    if (!endAmpm && r[1] === "中午" && Number(r[7]) < 11) endAmpm = "下午";
     let startMin = toMinutes(Number(r[2]), minutePart(r[3], r[4]), startAmpm);
     const endMin = toMinutes(Number(r[7]), minutePart(r[8], r[9]), endAmpm);
     // "5-10pm" -> the start inherits pm when that keeps the shift in order
@@ -151,29 +190,59 @@ export function parseScheduleDetailed(text: string, year: number, period?: { sta
     const fmt = (m: number) => `${pad(Math.floor((m % 1440) / 60))}:${pad(m % 60)}`;
     shifts.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: findBreak(line), marked: marker(line), raw: original.trim() });
   }
-  return { shifts, unread };
+  return { shifts, unread, range: own };
 }
 
 export function parseScheduleRules(text: string, year: number, period?: { start?: string; end?: string }): RawShift[] {
   return parseScheduleDetailed(text, year, period).shifts;
 }
 
+const MONEY = String.raw`\s*[:：]?\s*(?:NT\$|US\$|\$|新臺幣|新台幣)?\s*([\d,]+(?:\.\d+)?)`;
+/** Gross pay: what the employer paid before the worker's own deductions. Preferred. */
+const GROSS = new RegExp(
+  String.raw`(應發金額|應發工資|應發薪資|應發|應領金額|應領|薪資總額|工資總額|薪資合計|工資合計|總計|合計|gross pay|gross wages|gross earnings|gross|total pay|total wages|total earnings|wages paid)` + MONEY,
+  "i",
+);
+/** Net pay: what reached the worker after deductions (labor and health insurance, tax). */
+const NET = new RegExp(
+  String.raw`(實發金額|實發薪資|實發|本期實領|實領金額|實領|實得|實付|實收|入帳金額|入帳|轉帳金額|淨額|net pay|net wages|take[- ]home(?: pay)?)` + MONEY,
+  "i",
+);
+const MONTHLY = new RegExp(String.raw`(月薪|底薪|本薪|每月薪資|monthly salary|salary per month|monthly pay)` + MONEY, "i");
+
 export function parsePayslipRules(text: string, currency: Payslip["currency"]): Payslip {
   const p: Payslip = { currency };
   const t = text.normalize("NFKC");
-  const rate = t.match(/(時薪|hourly rate|rate|pay rate)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*(\d+(?:\.\d+)?)/i);
-  if (rate) p.hourlyRate = Number(rate[2]);
-  const hours = t.match(/(總工時|工時|時數|hours paid|paid hours|hours)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
+  const rate = t.match(/(時薪|鐘點費|hourly rate|hourly wage|pay rate|rate)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*(\d+(?:\.\d+)?)/i);
+  if (rate) {
+    p.hourlyRate = Number(rate[2]);
+    p.rateSource = "payslip";
+  }
+  const hours = t.match(/(總工時|工時|時數|hours paid|paid hours|hours worked|hours)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
   if (hours) p.hoursPaid = Number(hours[2]);
-  // Lines about tips are never the wages paid.
-  const wageText = t
-    .split(/\r?\n/)
-    .filter((l) => !/tip|小費/i.test(l))
-    .join("\n");
-  const gross = wageText.match(/(實發金額|實發|應發|薪資總額|總計|合計|gross pay|gross wages|gross|total pay|wages paid|net pay|total)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
-  if (gross) p.grossPaid = Number(gross[2].replace(/,/g, ""));
-  const tips = t.match(/(tips? (?:received|reported|total)|tips?|小費)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
+  const tips = t.match(/(tips? (?:received|reported|total|paid)|tips?|小費)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*([\d,]+(?:\.\d+)?)/i);
   if (tips) p.tips = Number(tips[2].replace(/,/g, ""));
+  if (/\b(?:incl(?:udes|uding|\.)?|with)\s+tips\b|含小費/i.test(t)) p.tipsInGross = true;
+  // Amounts about tips or deductions are never the wages paid. Remove those
+  // parts (not whole lines: a payslip pasted on one line has everything on it).
+  const wageText = t
+    .replace(/(?:tips?|小費)(?:\s+(?:received|reported|total|paid))?\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*[\d,]+(?:\.\d+)?/gi, " ")
+    .split(/\r?\n/)
+    .filter((l) => !/扣|自付|代扣|deduct|withh|\btax/i.test(l))
+    .join("\n");
+  const gross = wageText.match(GROSS);
+  const net = wageText.match(NET);
+  if (gross) {
+    p.grossPaid = Number(gross[2].replace(/,/g, ""));
+    p.paidKind = "gross";
+    if (net) p.netPaid = Number(net[2].replace(/,/g, ""));
+  } else if (net) {
+    p.grossPaid = Number(net[2].replace(/,/g, ""));
+    p.netPaid = p.grossPaid;
+    p.paidKind = "net";
+  }
+  const monthly = t.match(MONTHLY);
+  if (monthly) p.monthlySalary = Number(monthly[2].replace(/,/g, ""));
   const dates = [...t.matchAll(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/g)].map((m) => `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`);
   if (dates.length >= 2) {
     p.periodStart = dates[0];

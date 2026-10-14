@@ -31,6 +31,16 @@ export interface Payslip {
   grossPaid?: number;
   /** Tips received in the period (US tipped workers). Not part of wages paid. */
   tips?: number;
+  /** The payslip itself says the gross includes tips ("incl. tips"). */
+  tipsInGross?: boolean;
+  /** Which amount grossPaid is: gross pay (preferred) or net pay after deductions (實發, 實領). */
+  paidKind?: "gross" | "net";
+  /** Net pay, when the payslip states it. */
+  netPaid?: number;
+  /** A monthly salary (月薪) on the payslip. Fair Shift checks hourly pay only. */
+  monthlySalary?: number;
+  /** Where the hourly rate came from. */
+  rateSource?: "payslip" | "you";
   currency: "TWD" | "USD";
 }
 
@@ -56,7 +66,14 @@ export interface RuleRecord {
   value: number; // hourly amount, a pay multiplier, or an hours limit
   effectiveFrom?: string; // YYYY-MM-DD, required for minimum wages
   effectiveTo?: string;
-  status: "in_force" | "pending_approval";
+  /**
+   * in_force; pending_approval = decided, awaiting Executive Yuan approval;
+   * cabinet_announced = the Executive Yuan heard the report and announced the
+   * raise (found by search), formal notice not yet seen.
+   */
+  status: "in_force" | "pending_approval" | "cabinet_announced";
+  /** Date of the newer status (cabinet_announced). */
+  statusDate?: string;
   region?: NyRegion;
   /** New York tip credit: which tipped job the rate is for. */
   variant?: TipVariant;
@@ -140,6 +157,18 @@ export interface CheckInput {
   nyTipsInGross?: "yes" | "no" | "unsure";
 }
 
+export interface Alternative {
+  id: "holiday_as_rest_day" | "holiday_as_holiday" | "tips_in_gross";
+  /** The reading the main result uses. */
+  primary: { en: string; zh: string };
+  /** The other reading. */
+  alt: { en: string; zh: string };
+  expectedTotal: number;
+  paidTotal?: number;
+  shortfall?: number;
+  dates?: string[];
+}
+
 export interface FairShiftReport {
   id: string;
   createdAt: string;
@@ -152,11 +181,36 @@ export interface FairShiftReport {
   rules: RuleRecord[];
   holidays: HolidayRecord[];
   computation: Computation;
-  explanation: { text: string; textZh?: string; messageToEmployer: string; source: "model" | "template"; model?: string };
+  explanation: {
+    text: string;
+    textZh?: string;
+    /** In the employer's language (Chinese for Taiwan, English for New York). */
+    messageToEmployer: string;
+    /** The same message in the other language, for the worker to read. */
+    messageTranslation?: string;
+    messageLang?: "zh" | "en";
+    source: "model" | "template";
+    model?: string;
+  };
   /** What the headline number depends on, shown right under it. */
   premises: { en: string; zh: string }[];
   /** Set when no shift could be read: the UI shows this instead of a result. */
-  parseError?: { en: string; zh: string; unread: string[] };
+  parseError?: { part: "schedule"; en: string; zh: string; unread: string[] };
+  /** Set when the payslip lacks what the check needs (an hourly rate): no amount is shown, the page asks. */
+  needsInput?: { part: "payslip"; kind: "hourly_rate"; en: string; zh: string; monthlySalary?: number };
+  /**
+   * Another reading of the same input that changes the amount, shown next to
+   * the main one: a holiday that may be the rest day, or gross pay that may
+   * include tips.
+   */
+  alternatives?: Alternative[];
+  /**
+   * Set when this is a saved live result for a sample, served because the
+   * public demo reached a daily cap or the live run failed.
+   */
+  precomputed?: { reason: "limit" | "error"; ranAt: string; en: string; zh: string };
+  /** Tavily searches made in this run and what code did with the results. */
+  searchNotes?: import("./freshness").SearchNote[];
   trace: import("../types").TraceStep[];
   usage: import("../types").Usage;
   modelsUsed: string[];

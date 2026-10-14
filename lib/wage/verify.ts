@@ -158,7 +158,11 @@ export function verifyRule(
       };
     const mult = spec.kind === "extra_fraction" ? 1 + rates[0] : rates[0];
     // 1.3333 for 4/3 is fine; the exact value read from the quote is stored.
-    if (!approxEqual(mult, p.value, 5e-4)) return { ok: false, reason: `the quote gives a multiplier of ${mult.toFixed(4)}, not ${p.value}` };
+    // Rest day clauses say 另再加給一又三分之一: a model may add the base hour and propose 2.3333.
+    // The clause is the right one and code reads the multiplier from it, so the code-read value is stored.
+    const restDayPlusBase = (spec.key === "tw.rest_first2" || spec.key === "tw.rest_after2") && approxEqual(mult + 1, p.value, 5e-4);
+    if (!approxEqual(mult, p.value, 5e-4) && !restDayPlusBase)
+      return { ok: false, reason: `the quote gives a multiplier of ${mult.toFixed(4)}, not ${p.value}. Record ${mult.toFixed(4)}` };
     exact = mult;
   }
 
@@ -174,7 +178,12 @@ export function verifyRule(
     effectiveFrom = p.effective_from;
     if (p.effective_to && dates.has(p.effective_to)) effectiveTo = p.effective_to;
   }
-  const status: RuleRecord["status"] = quotes.some((q) => PENDING.test(q)) ? "pending_approval" : "in_force";
+  // Pending when the quote says so, or (Taiwan minimum wage) when the page the quote comes from
+  // says the rate still goes to the Executive Yuan for approval: a quote of the rate sentence alone
+  // must not turn a decided rate into one in force.
+  const pagePending =
+    spec.key === "tw.min_wage_hourly" && cits.some((c) => (docs.page(c.url)?.content ?? "").replace(/\s+/g, "").match(/陳報行政院核定|倘經行政院核定/));
+  const status: RuleRecord["status"] = quotes.some((q) => PENDING.test(q)) || pagePending ? "pending_approval" : "in_force";
   return {
     ok: true,
     value: {

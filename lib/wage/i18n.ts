@@ -36,6 +36,14 @@ export function citeOf(k: RuleKey, lang: Lang): string {
   return s ? s.cite[lang] : k;
 }
 
+/** A rule's legal status in words. */
+export function statusWords(r: RuleRecord, lang: Lang): string {
+  if (r.status === "in_force") return lang === "zh" ? "現行有效" : "In force";
+  if (r.status === "cabinet_announced")
+    return lang === "zh" ? `行政院會 ${r.statusDate} 已宣布調升，待勞動部正式公告` : `Announced by the Executive Yuan on ${r.statusDate}; formal notice pending`;
+  return lang === "zh" ? "已決定，尚待行政院核定" : "Decided, awaiting Executive Yuan approval";
+}
+
 export function ruleTitle(k: RuleKey, lang: Lang): string {
   const s = specByKey(k);
   return s ? (lang === "zh" ? s.labelZh : s.label) : k;
@@ -158,7 +166,11 @@ export function notChecked(j: Jurisdiction): { zh: string; en: string }[] {
       },
       { zh: "每月加班時數的上限。", en: "The monthly cap on overtime hours." },
       { zh: "國定假日遇到休息日或例假時，補假是哪一天。", en: "Which day is the substitute day off when a holiday falls on your rest day or day off." },
-      { zh: "月薪制、責任制、原住民族歲時祭儀放假。", en: "Monthly-paid jobs, exempt jobs under Art. 84-1, and indigenous ritual holidays." },
+      {
+        zh: "休息日上班超過 8 小時的部分：這裡只按第 24 條第 2 項的兩段費率算，勞動部的加班費試算系統對超過 8 小時另有更高的加給。",
+        en: "Rest day work beyond 8 hours: counted at the two Art. 24 para. 2 rates only; the Ministry of Labor's overtime calculator adds a higher rate beyond 8 hours.",
+      },
+      { zh: "月薪制（會請你改填時薪）、責任制、原住民族歲時祭儀放假。", en: "Monthly-paid jobs (the page asks for an hourly rate instead), exempt jobs under Art. 84-1, and indigenous ritual holidays." },
     ];
   return [
     { en: "Call-in pay.", zh: "臨時被叫來上班的報到工資。" },

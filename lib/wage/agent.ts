@@ -16,13 +16,12 @@ export const RULES_SYSTEM_PROMPT = `You are the rule finder for Fair Shift, a pa
 
 Work in as few turns as possible. Keep your reasoning short.
 Turn 1: call fetch_pages ONCE with every entry in "pages" (url and focus as given).
-Turn 2: call record_rules ONCE with an entry for every rule in "rules" and, for Taiwan, record_holidays ONCE with every holiday in "holidays_to_check" that the act makes a day off. Each entry needs the value and quote(s) copied character for character from a fetched page (line breaks and spaces do not matter). Quote only the clause for that rule, not the whole article.
-Turn 3: the tool result lists what was accepted and what was rejected, with the reason. Fix only the rejected entries and call the tool again. Use search_official only when a page had no usable text.
-Then call finish.
+Turn 2: call record_rules ONCE with an entry for every rule in "rules" and, for Taiwan, in the same call, "holidays" with every holiday in "holidays_to_check" that the act makes a day off (an empty list if none is). Each entry needs the value and quote(s) copied character for character from a fetched page (line breaks and spaces do not matter). Quote only the clause for that rule, not the whole article.
+The tool result lists what was accepted and what was rejected, with the reason. If anything was rejected, fix only those entries and call record_rules again. When nothing is missing the run ends by itself. Use search_official only when a page had no usable text.
 
 Values:
 - Minimum wage: the hourly amount; effective_from is the start date written in the quote (YYYY-MM-DD). Record every rate whose dates overlap the shift dates, including a newly decided rate.
-- Multipliers: the total pay multiplier for that hour. "加給三分之一" means 1.3333; "加給三分之二" means 1.6667; "另再加給一又三分之一" means 1.3333; "另再加給一又三分之二" means 1.6667; "加倍" means 2; "1 ½ times" means 1.5.
+- Multipliers: the total pay multiplier for that hour, as the Ministry of Labor's own example computes it (150 x 2 x 4/3 for two rest day hours). "加給三分之一" means 1.3333; "加給三分之二" means 1.6667; "另再加給一又三分之一" means 1.3333 (not 2.3333); "另再加給一又三分之二" means 1.6667; "加倍" means 2; "1 ½ times" means 1.5.
 - Hours limits: the number of hours in the clause. "每週工作總時數超過四十小時" means 40; "spread of hours exceeds 10" means 10.
 - New York tip credit: the Credit amount on one rate line, with region and variant set to ny_region and ny_job.
 Holidays (Taiwan): a fixed-date holiday needs month_day (MM-DD), one quote giving its name and date (e.g. "國慶日：十月十日。") and the day-off evidence: the clause line "下列紀念日均放假一日，其餘均不放假：" plus, as a separate quote, the numbered item that names the holiday (e.g. "四、國慶日。"). Every quote must be one unbroken passage of the page; never join pieces with a line break. A lunar-calendar holiday needs date (YYYY-MM-DD) and name, one quote with its lunar date rule and one saying it is a day off.
@@ -37,15 +36,32 @@ export interface RulesTask {
   ny_job?: NyJob;
   shift_dates: string[];
   /** Fetch all of these in the first turn. The same URL may appear with different focus. */
-  pages: { url: string; focus: string; for: string[] }[];
+  pages: { url: string; focus: string; for: string[]; found_by_search?: boolean }[];
   rules: { key: RuleKey; label: string; ask: string }[];
   /** Taiwan: shift dates to check against the holiday act. */
   holidays_to_check?: { date: string; kind: "fixed_date" | "lunar"; name?: string }[];
 }
 
-export function buildTask(j: Jurisdiction, dates: string[], region?: NyRegion, nyJob: NyJob = "general"): RulesTask {
+/** Every page the agent will be asked to fetch, for prefetching while the schedule is parsed. */
+export function seedUrls(j: Jurisdiction, dates: string[], nyJob: NyJob = "general"): string[] {
+  return [...new Set(buildTask(j, dates, undefined, nyJob).pages.map((p) => p.url))];
+}
+
+/** True when every rule the check needs (or the given group) is recorded and, if asked, the Taiwan holidays were checked. */
+export function rulesComplete(j: Jurisdiction, store: RuleStore, nyJob?: NyJob, keys?: RuleKey[], holidays = j === "TW"): boolean {
+  return missingKeys(j, store, nyJob, keys).length === 0 && (!holidays || !!store.holidaysChecked);
+}
+
+export function buildTask(
+  j: Jurisdiction,
+  dates: string[],
+  region?: NyRegion,
+  nyJob: NyJob = "general",
+  extraPages: { url: string; focus: string; for: string[] }[] = [],
+  group?: { keys: RuleKey[]; holidays: boolean },
+): RulesTask {
   const shiftDates = [...new Set(dates)].sort();
-  const specs = specsFor(j, nyJob);
+  const specs = specsFor(j, nyJob).filter((s) => !group || group.keys.includes(s.key));
   const pages: RulesTask["pages"] = [];
   for (const s of specs) {
     for (const url of s.seedUrls) {
@@ -59,8 +75,9 @@ export function buildTask(j: Jurisdiction, dates: string[], region?: NyRegion, n
       } else pages.push({ url, focus: s.query.slice(0, 200), for: [s.key] });
     }
   }
+  for (const e of extraPages) if (!pages.some((p) => p.url === e.url) && (!group || e.for.some((k) => group.keys.includes(k as RuleKey)))) pages.push({ ...e, found_by_search: true });
   let holidays: RulesTask["holidays_to_check"];
-  if (j === "TW") {
+  if (j === "TW" && (!group || group.holidays)) {
     pages.push({ url: twHolidayActUrl(shiftDates), focus: HOLIDAY_ACT_FOCUS, for: ["holidays"] });
     const lunar = LUNAR_HOLIDAYS.filter((h) => shiftDates.includes(h.date));
     holidays = shiftDates.map((d) => {
@@ -82,7 +99,7 @@ export function buildTask(j: Jurisdiction, dates: string[], region?: NyRegion, n
 export interface RuleStore {
   rules: RuleRecord[];
   holidays: HolidayRecord[];
-  /** Taiwan: the agent has called record_holidays at least once. */
+  /** Taiwan: the agent has recorded holidays (possibly none) at least once. */
   holidaysChecked?: boolean;
 }
 
@@ -136,12 +153,27 @@ export interface RuleToolOptions {
    */
   verify?: boolean;
   nyJob?: NyJob;
+  /** Only these rules (one of the two parallel groups). Default: all the check needs. */
+  keys?: RuleKey[];
+  /** Taiwan: this loop also records the holidays. Default true. */
+  holidays?: boolean;
 }
 
-function missingKeys(j: Jurisdiction, store: RuleStore, nyJob?: NyJob): string[] {
+function missingKeys(j: Jurisdiction, store: RuleStore, nyJob?: NyJob, keys?: RuleKey[]): string[] {
   return specsFor(j, nyJob)
-    .filter((s) => !store.rules.some((r) => r.key === s.key))
+    .filter((s) => (!keys || keys.includes(s.key)) && !store.rules.some((r) => r.key === s.key))
     .map((s) => s.key);
+}
+
+/**
+ * The rules a check needs, in two groups that two agent loops record in
+ * parallel: "rates" are dated amounts (minimum wage, tip credit) plus the
+ * Taiwan holidays; "law" are the multipliers and hour limits in the acts.
+ * Each loop has less to copy per turn, so the two finish sooner than one.
+ */
+export function ruleGroups(j: Jurisdiction, nyJob: NyJob = "general"): { rates: RuleKey[]; law: RuleKey[] } {
+  const specs = specsFor(j, nyJob);
+  return { rates: specs.filter((s) => s.requiresDate).map((s) => s.key), law: specs.filter((s) => !s.requiresDate).map((s) => s.key) };
 }
 
 /** Unchecked record, for the eval's verification-off column. */
@@ -220,6 +252,10 @@ const fetchPagesTool: AppTool = {
 
 export function ruleTools(j: Jurisdiction, store: RuleStore, opts: RuleToolOptions = {}): AppTool[] {
   const verify = opts.verify !== false;
+  const withHolidays = j === "TW" && opts.holidays !== false;
+  const keys = specsFor(j, opts.nyJob)
+    .map((s) => s.key)
+    .filter((k) => !opts.keys || opts.keys.includes(k));
   const tools: AppTool[] = [
     fetchPagesTool,
     {
@@ -237,7 +273,7 @@ export function ruleTools(j: Jurisdiction, store: RuleStore, opts: RuleToolOptio
                 items: {
                   type: "object",
                   properties: {
-                    key: { type: "string", enum: specsFor(j, opts.nyJob).map((s) => s.key) },
+                    key: { type: "string", enum: keys },
                     value: { type: "number" },
                     effective_from: { type: "string", description: "YYYY-MM-DD, minimum wages and tip credits" },
                     effective_to: { type: "string" },
@@ -248,14 +284,16 @@ export function ruleTools(j: Jurisdiction, store: RuleStore, opts: RuleToolOptio
                   required: ["key", "value", "citations"],
                 },
               },
+              ...(withHolidays ? { holidays: holidaySchema } : {}),
             },
-            required: ["rules"],
+            required: withHolidays ? ["rules", "holidays"] : ["rules"],
           },
         },
       },
       handler(args, ctx) {
         const list = asArray(args.rules).slice(0, MAX_BATCH);
-        if (list.length === 0) throw new Error("rules must be a non-empty array of objects");
+        const holidayResult = withHolidays && args.holidays !== undefined ? recordHolidays(asArray(args.holidays), store, verify, ctx) : undefined;
+        if (list.length === 0 && !holidayResult) throw new Error("rules must be a non-empty array of objects");
         const accepted: string[] = [];
         const rejected: { key: string; reason: string }[] = [];
         for (const raw of list) {
@@ -272,7 +310,7 @@ export function ruleTools(j: Jurisdiction, store: RuleStore, opts: RuleToolOptio
           const v = verifyRule({ ...p, value: Number(p.value) }, ctx.session.docs, j, "agent");
           if (!v.ok) {
             rejected.push({ key: label, reason: v.reason });
-            ctx.session.emit({ kind: "guard", name: "rule_rejected", detail: `${label}: ${v.reason}`.slice(0, 160) });
+            ctx.session.emit({ kind: "guard", name: "rule_rejected", detail: `${label}: ${v.reason}`.slice(0, 160), detailZh: `「${label}」被退回：${zhReason(v.reason)}` });
             continue;
           }
           addRule(store, v.value);
@@ -280,76 +318,73 @@ export function ruleTools(j: Jurisdiction, store: RuleStore, opts: RuleToolOptio
             `${v.value.key} = ${v.value.value}${v.value.effectiveFrom ? ` from ${v.value.effectiveFrom}` : ""}${v.value.status === "pending_approval" ? " (pending approval)" : ""}`,
           );
         }
-        const still = missingKeys(j, store, opts.nyJob);
-        if (j === "TW" && !store.holidaysChecked) still.push("holidays: call record_holidays (an empty list if no shift date is a holiday)");
+        const still = missingKeys(j, store, opts.nyJob, opts.keys);
+        if (withHolidays && !store.holidaysChecked) still.push('holidays: send "holidays" in record_rules (an empty list if no shift date is a holiday)');
+        const hAcc = holidayResult?.accepted ?? [];
+        const hRej = holidayResult?.rejected ?? [];
+        const nAcc = accepted.length + hAcc.length;
+        const nRej = rejected.length + hRej.length;
         return {
           accepted,
           rejected,
+          ...(holidayResult ? { holidays_accepted: hAcc, holidays_rejected: hRej } : {}),
           still_missing: still,
-          detail: `${accepted.length} accepted, ${rejected.length} rejected${still.length ? `; still missing ${still.join(", ")}` : ""}`,
+          detail: `${nAcc} accepted, ${nRej} rejected${still.length ? `; still missing ${still.join(", ")}` : ""}`,
+          detailZh: `${nAcc} 項通過檢查、${nRej} 項被退回${still.length ? `；還缺 ${still.length} 項` : ""}`,
         };
       },
     },
   ];
-  if (j === "TW")
-    tools.push({
-      schema: {
-        type: "function",
-        function: {
-          name: "record_holidays",
-          description:
-            "Record national holidays that fall on shift dates, several at once. Fixed-date holiday: give month_day (MM-DD). Lunar-calendar holiday: give date (YYYY-MM-DD). Code checks the quotes.",
-          parameters: {
-            type: "object",
-            properties: {
-              holidays: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    month_day: { type: "string", description: "MM-DD, fixed-date holidays" },
-                    date: { type: "string", description: "YYYY-MM-DD, lunar-calendar holidays" },
-                    name: { type: "string" },
-                    citations: citationSchema,
-                  },
-                  required: ["name", "citations"],
-                },
-              },
-            },
-            required: ["holidays"],
-          },
-        },
-      },
-      handler(args, ctx) {
-        const list = mergeHolidays(asArray(args.holidays).slice(0, MAX_BATCH) as ProposedHoliday[]);
-        store.holidaysChecked = true;
-        if (list.length === 0) return { accepted: [], rejected: [], detail: "no holidays on the shift dates" };
-        const accepted: string[] = [];
-        const rejected: { name: string; reason: string }[] = [];
-        for (const raw of list) {
-          const p = (raw && typeof raw === "object" ? raw : {}) as ProposedHoliday;
-          const name = String(p.name ?? "?");
-          if (!verify) {
-            const md = p.date ? String(p.date).slice(5) : String(p.month_day || "");
-            if (/^\d{2}-\d{2}$/.test(md) && name.length >= 2) {
-              addHoliday(store, { monthDay: md, date: p.date || undefined, name, citations: [], recordedBy: "agent" });
-              accepted.push(name);
-            } else rejected.push({ name, reason: "month_day or date is required" });
-            continue;
-          }
-          const v = verifyHoliday(p, ctx.session.docs, "agent");
-          if (!v.ok) {
-            rejected.push({ name, reason: v.reason });
-            ctx.session.emit({ kind: "guard", name: "holiday_rejected", detail: `${name}: ${v.reason}`.slice(0, 160) });
-            continue;
-          }
-          addHoliday(store, v.value);
-          accepted.push(`${v.value.name} ${v.value.date ?? v.value.monthDay}`);
-        }
-        return { accepted, rejected, detail: `${accepted.length} accepted, ${rejected.length} rejected` };
-      },
-    });
   return tools;
+}
+
+const holidaySchema = {
+  type: "array",
+  description: "Taiwan: national holidays that fall on shift dates. Fixed-date holiday: month_day (MM-DD). Lunar-calendar holiday: date (YYYY-MM-DD). An empty list if none.",
+  items: {
+    type: "object",
+    properties: {
+      month_day: { type: "string", description: "MM-DD, fixed-date holidays" },
+      date: { type: "string", description: "YYYY-MM-DD, lunar-calendar holidays" },
+      name: { type: "string" },
+      citations: citationSchema,
+    },
+    required: ["name", "citations"],
+  },
+};
+
+/** Check and record proposed holidays (Taiwan). Code checks every quote. */
+function recordHolidays(
+  raw: unknown[],
+  store: RuleStore,
+  verify: boolean,
+  ctx: { session: { docs: DocStore; emit: (s: { kind: "guard"; name: string; detail: string; detailZh?: string }) => void } },
+): { accepted: string[]; rejected: { name: string; reason: string }[] } {
+  const list = mergeHolidays(raw.slice(0, MAX_BATCH) as ProposedHoliday[]);
+  store.holidaysChecked = true;
+  const accepted: string[] = [];
+  const rejected: { name: string; reason: string }[] = [];
+  for (const item of list) {
+    const p = (item && typeof item === "object" ? item : {}) as ProposedHoliday;
+    const name = String(p.name ?? "?");
+    if (!verify) {
+      const md = p.date ? String(p.date).slice(5) : String(p.month_day || "");
+      if (/^\d{2}-\d{2}$/.test(md) && name.length >= 2) {
+        addHoliday(store, { monthDay: md, date: p.date || undefined, name, citations: [], recordedBy: "agent" });
+        accepted.push(name);
+      } else rejected.push({ name, reason: "month_day or date is required" });
+      continue;
+    }
+    const v = verifyHoliday(p, ctx.session.docs, "agent");
+    if (!v.ok) {
+      rejected.push({ name, reason: v.reason });
+      ctx.session.emit({ kind: "guard", name: "holiday_rejected", detail: `${name}: ${v.reason}`.slice(0, 160), detailZh: `假日「${name}」被退回：引文對不上` });
+      continue;
+    }
+    addHoliday(store, v.value);
+    accepted.push(`${v.value.name} ${v.value.date ?? v.value.monthDay}`);
+  }
+  return { accepted, rejected };
 }
 
 /** Docs the mock "read" from tool results in the conversation. */
@@ -368,11 +403,22 @@ function docsFromMessages(messages: ChatMessage[]): RetrievedDoc[] {
   return out;
 }
 
+/** Short Chinese version of a rejection reason, for the trace on the Chinese page. */
+function zhReason(r: string): string {
+  if (/states \d+ rates/.test(r)) return "引文裡有兩個以上的費率，要只引這條規定的那一句";
+  if (/not found verbatim/.test(r)) return "引文在取得的原文裡找不到，必須一字不差";
+  if (/is on .*not on/.test(r)) return "引文在另一個網頁上，來源網址填錯了";
+  if (/effective_from/.test(r)) return "生效日期必須是引文裡寫的日期";
+  if (/not the clause/.test(r)) return "引的不是這條規定的條文";
+  if (/multiplier|amount|value/.test(r)) return "數值和引文寫的不一樣";
+  return "引文檢查沒有通過";
+}
+
 /**
  * Demo-mode agent. Turn 1 fetches every page in the task at once; turn 2
  * records the values the deterministic extractor finds in the fetched text, in
- * one record_rules call (and one record_holidays call); turn 3 finishes. It goes
- * through exactly the same tools and checks as the live model.
+ * one record_rules call (with the holidays for Taiwan); the loop then ends by
+ * itself. It goes through exactly the same tools and checks as the live model.
  */
 export function rulesMockScript(): MockScript {
   return (messages): MockAction => {
@@ -388,14 +434,12 @@ export function rulesMockScript(): MockScript {
       const props = fallbackRules(docs, keys).filter(
         (p) => (!p.region || p.region === task.ny_region) && (!p.variant || p.variant === task.ny_job),
       );
-      const calls: NonNullable<MockAction["calls"]> = [];
-      if (props.length) calls.push({ tool: "record_rules", args: { rules: props } });
-      if (task.jurisdiction === "TW") {
+      const args: Record<string, unknown> = { rules: props };
+      if (task.jurisdiction === "TW" && task.holidays_to_check) {
         const mds = new Set(task.shift_dates.map((d) => d.slice(5)));
-        const hols = [...fallbackHolidays(docs).filter((h) => mds.has(h.month_day!)), ...fallbackLunarHolidays(docs, task.shift_dates)];
-        if (hols.length) calls.push({ tool: "record_holidays", args: { holidays: hols } });
+        args.holidays = [...fallbackHolidays(docs).filter((h) => mds.has(h.month_day!)), ...fallbackLunarHolidays(docs, task.shift_dates)];
       }
-      if (calls.length) return { calls };
+      if (props.length || args.holidays) return { tool: "record_rules", args };
     }
     return { tool: "finish", args: { summary: "Demo agent finished." } };
   };

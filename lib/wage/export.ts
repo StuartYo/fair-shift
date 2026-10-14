@@ -1,6 +1,6 @@
 import { NY_JOB_LABEL, NY_REGION_LABEL, specByKey } from "./catalog";
-import { reasons } from "./explain";
-import { citeOf, DISCLAIMER_ZH, lineLabel, lineRuleKeys, multiplierWords, ruleTitle, splitRules, type Lang } from "./i18n";
+import { holidayNameEn, reasons } from "./explain";
+import { citeOf, DISCLAIMER_ZH, lineLabel, lineRuleKeys, multiplierWords, ruleTitle, splitRules, statusWords, type Lang } from "./i18n";
 import type { FairShiftReport, HolidayRecord, PayLine, RuleKey, RuleRecord, Shift } from "./types";
 
 // Plain formatting helpers shared by the UI and the Markdown export.
@@ -110,19 +110,23 @@ export function toMarkdown(r: FairShiftReport, lang: Lang = r.input.jurisdiction
   const { used } = splitRules(r);
   out.push(``, zh ? `## 用到的官方規定` : `## Official rules used`, ``);
   for (const rule of used) {
-    out.push(`### ${ruleTitle(rule.key, lang)}（${citeOf(rule.key, lang)}）：${ruleValueWords(rule, cur, lang)}${rule.effectiveFrom ? (zh ? `，${rule.effectiveFrom} 起` : `, from ${rule.effectiveFrom}`) : ""}${rule.status === "pending_approval" ? (zh ? "（尚待核定）" : " (pending approval)") : ""}`);
+    out.push(`### ${ruleTitle(rule.key, lang)}（${citeOf(rule.key, lang)}）：${ruleValueWords(rule, cur, lang)}${rule.effectiveFrom ? (zh ? `，${rule.effectiveFrom} 起` : `, from ${rule.effectiveFrom}`) : ""}${rule.status !== "in_force" ? (zh ? `（${statusWords(rule, lang)}）` : ` (${statusWords(rule, lang)})`) : ""}`);
     for (const ci of rule.citations) out.push(``, `> ${ci.quote}`, ``, `${zh ? "出處" : "Source"}: [${ci.title}](${ci.url})`);
     out.push(``);
   }
   for (const h of r.holidays) {
-    out.push(`### ${zh ? "國定假日" : "Holiday"}: ${h.name} (${holidayLabel(h, r.shifts)})`);
+    out.push(`### ${zh ? "國定假日" : "Holiday"}: ${zh ? h.name : holidayNameEn(h.name)} (${holidayLabel(h, r.shifts)})`);
     for (const ci of h.citations) out.push(``, `> ${ci.quote}`, ``, `${zh ? "出處" : "Source"}: [${ci.title}](${ci.url})`);
     if (h.dateSource) out.push(``, `${zh ? "日期" : "Date"}: ${h.dateSource.note} [${h.dateSource.title}](${h.dateSource.url})`);
     out.push(``);
   }
   const as = zh ? c.assumptionsZh : c.assumptions;
   if (as.length) out.push(zh ? `## 假設` : `## Assumptions`, ``, ...as.map((a) => `- ${a}`), ``);
-  out.push(zh ? `## 給雇主的訊息` : `## Message to employer`, ``, r.explanation.messageToEmployer, ``, `---`, zh ? DISCLAIMER_ZH : r.disclaimer);
+  for (const a of r.alternatives ?? [])
+    out.push(zh ? `## 另一種算法` : `## The other reading`, ``, `- ${a.primary[lang]}: ${fmtMoney(c.expectedTotal, cur)}`, `- ${a.alt[lang]}: ${fmtMoney(a.expectedTotal, cur)}`, ``);
+  out.push(zh ? `## 給雇主的訊息` : `## Message to employer`, ``, r.explanation.messageToEmployer, ``);
+  if (r.explanation.messageTranslation && (r.explanation.messageLang ?? "zh") !== lang) out.push(zh ? `中文翻譯：` : `Translation:`, ``, r.explanation.messageTranslation, ``);
+  out.push(`---`, zh ? DISCLAIMER_ZH : r.disclaimer);
   return out.join("\n");
 }
 

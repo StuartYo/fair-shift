@@ -13,7 +13,8 @@
     "eval": "vitest run --config vitest.eval.config.mts eval/run-eval.test.ts",
     "feasibility": "vitest run --config vitest.eval.config.mts eval/feasibility.test.ts",
     "probe:sources": "vitest run --config vitest.eval.config.mts eval/sources-probe.test.ts",
-    "readme": "vitest run --config vitest.eval.config.mts eval/sync-readme.test.ts"
+    "readme": "vitest run --config vitest.eval.config.mts eval/sync-readme.test.ts",
+    "timing": "vitest run --config vitest.eval.config.mts eval/timing.test.ts"
   },
   "engines": {
     "node": ">=20.9.0"

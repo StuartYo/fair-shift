@@ -13,7 +13,15 @@ import type { SearchHit, SearchProvider } from "./provider";
 // non-allowlisted URLs before any request is made.
 
 const API = "https://api.tavily.com";
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Pages and search results are cached per URL (or query) per UTC day, in memory
+ * and, on Vercel, in the instance's /tmp. Official wage pages change at most a
+ * few times a year; repeat checks the same day reuse what was retrieved and
+ * cost no credits and no wait. A new day retrieves fresh text.
+ */
+const today = () => new Date().toISOString().slice(0, 10);
+const memory = new Map<string, unknown>();
 
 /**
  * Optional disk cache for eval and feasibility runs (TAVILY_CACHE_DIR, gitignored).
@@ -44,19 +52,49 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export class TavilyProvider implements SearchProvider {
   readonly kind = "tavily" as const;
-  private cache = new Map<string, { at: number; doc: RetrievedDoc }>();
   private disk?: DiskCache;
+  private fetchImpl: FetchLike;
+  private mem: Map<string, unknown>;
+  /** Day-scoped disk cache in /tmp on Vercel (the eval's TAVILY_CACHE_DIR cache is not day-scoped). */
+  private dayDisk?: DiskCache;
 
   constructor(
     private key = process.env.TAVILY_API_KEY,
     private domains: readonly string[] = allowedDomains(),
-    private fetchImpl: FetchLike = (i, init) => fetch(i, init),
+    fetchImpl?: FetchLike,
     /** Delay before the one retry of a failed extract; negative disables it. */
     private retryMs = 2000,
   ) {
     if (!key) throw new Error("TAVILY_API_KEY is not set");
+    // The real client shares one day cache per server instance; an injected fetch (tests) gets its own.
+    this.fetchImpl = fetchImpl ?? ((i, init) => fetch(i, init));
+    this.mem = fetchImpl ? new Map() : memory;
     const dir = process.env.TAVILY_CACHE_DIR?.trim();
     if (dir) this.disk = new DiskCache(dir);
+    else if (process.env.VERCEL) this.dayDisk = new DiskCache("/tmp/fair-shift-tavily");
+  }
+
+  private dayGet<T>(kind: string, key: string): T | undefined {
+    const k = `${today()}|${kind}|${key}`;
+    if (this.mem.has(k)) return this.mem.get(k) as T;
+    try {
+      const v = this.dayDisk?.get<T>(kind, k);
+      if (v !== undefined) this.mem.set(k, v);
+      return v;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private daySet(kind: string, key: string, value: unknown) {
+    const k = `${today()}|${kind}|${key}`;
+    if (this.mem.size > 500) this.mem.clear();
+    this.mem.set(k, value);
+    try {
+      this.dayDisk?.set(kind, k, value);
+    } catch {
+      /* /tmp full or read-only: memory cache only */
+    }
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {
@@ -74,7 +112,7 @@ export class TavilyProvider implements SearchProvider {
   async search(query: string, domains?: readonly string[]) {
     const include = narrowDomains(domains, this.domains);
     const dkey = `${query}|${[...include].sort().join(",")}`;
-    const hit = this.disk?.get<SearchHit[]>("search", dkey);
+    const hit = this.disk?.get<SearchHit[]>("search", dkey) ?? this.dayGet<SearchHit[]>("search", dkey);
     if (hit) return { hits: hit, credits: 0 };
     const data = await this.post<{ results?: { url: string; title: string; content: string }[] }>("/search", {
       query,
@@ -88,19 +126,15 @@ export class TavilyProvider implements SearchProvider {
       .filter((r) => isAllowedUrl(r.url, include))
       .map((r) => ({ url: r.url, title: r.title, snippet: r.content || "" }));
     this.disk?.set("search", dkey, hits);
+    this.daySet("search", dkey, hits);
     return { hits, credits: 1 };
   }
 
   async extract(url: string, query?: string) {
     if (!isAllowedUrl(url, this.domains)) throw new Error("URL is not on the official domain allowlist");
     const key = url + "|" + (query || "");
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return { doc: cached.doc, credits: 0 };
-    const fromDisk = this.disk?.get<RetrievedDoc>("extract", key);
-    if (fromDisk) {
-      this.cache.set(key, { at: Date.now(), doc: fromDisk });
-      return { doc: fromDisk, credits: 0 };
-    }
+    const cached = this.disk?.get<RetrievedDoc>("extract", key) ?? this.dayGet<RetrievedDoc>("extract", key);
+    if (cached) return { doc: cached, credits: 0 };
     const body: Record<string, unknown> = { urls: [url], extract_depth: "basic", format: "text", timeout: 30 };
     if (query) {
       body.query = query; // reranks chunks by relevance
@@ -126,8 +160,8 @@ export class TavilyProvider implements SearchProvider {
       via: "tavily_extract",
       retrievedAt: new Date().toISOString(),
     };
-    this.cache.set(key, { at: Date.now(), doc });
     this.disk?.set("extract", key, doc);
+    this.daySet("extract", key, doc);
     return { doc, credits };
   }
 }

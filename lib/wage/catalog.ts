@@ -257,6 +257,13 @@ export const NY_JOB_LABEL: Record<NyJob, string> = {
   service: "Other tipped service job",
 };
 
+export const NY_JOB_LABEL_ZH: Record<NyJob, string> = {
+  general: "沒有小費、不是餐廳或旅館",
+  hospitality: "餐廳或旅館，沒有小費",
+  food_service: "有小費的餐廳服務生或調酒師",
+  service: "其他有小費的服務工作",
+};
+
 export function isTipped(job?: NyJob): job is "food_service" | "service" {
   return job === "food_service" || job === "service";
 }
@@ -280,4 +287,10 @@ export const NY_REGION_LABEL: Record<NyRegion, string> = {
   nyc: "New York City",
   li_westchester: "Long Island and Westchester",
   rest: "Rest of New York State",
+};
+
+export const NY_REGION_LABEL_ZH: Record<NyRegion, string> = {
+  nyc: "紐約市",
+  li_westchester: "長島與威徹斯特郡",
+  rest: "紐約州其他地區",
 };

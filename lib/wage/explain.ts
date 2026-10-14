@@ -24,6 +24,30 @@ export function hasSimplified(s: string): boolean {
   return SIMPLIFIED.test(s);
 }
 
+/** English names of Taiwan's national holidays, for the English page. */
+const HOLIDAY_EN: [RegExp, string][] = [
+  [/開國紀念日/, "Republic Day"],
+  [/和平紀念日/, "Peace Memorial Day"],
+  [/兒童節/, "Children's Day"],
+  [/勞動節/, "Labor Day"],
+  [/國慶日/, "National Day"],
+  [/孔子誕辰/, "Confucius' Birthday"],
+  [/光復/, "Retrocession Day"],
+  [/行憲/, "Constitution Day"],
+  [/除夕/, "Lunar New Year's Eve"],
+  [/春節/, "Lunar New Year"],
+  [/清明|掃墓/, "Tomb Sweeping Day"],
+  [/端午/, "Dragon Boat Festival"],
+  [/中秋/, "Mid-Autumn Festival"],
+  [/原住民族/, "Indigenous Peoples' Day"],
+];
+
+/** "國慶日" -> "National Day (國慶日)". Unknown names stay as they are. */
+export function holidayNameEn(name: string): string {
+  const m = HOLIDAY_EN.find(([re]) => re.test(name));
+  return m ? `${m[1]} (${name})` : name;
+}
+
 /** 2026-10-10 -> "10/10" (zh) or "Oct 10" (en). */
 export function shortDate(d: string, zh: boolean): string {
   const m = Number(d.slice(5, 7));
@@ -109,7 +133,7 @@ export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): R
       out.push({
         ...base,
         zh: `${dz}（${names.join("、") || "國定假日"}）出勤 ${h} 小時：國定假日出勤，工資應加倍發給，這部分加給 ${amt}`,
-        en: `${de} (${names.join(", ") || "national holiday"}), ${h} hours: work on a national holiday is paid double, which adds ${amt}`,
+        en: `${de} (${names.map((n) => holidayNameEn(n!)).join(", ") || "national holiday"}), ${h} hours: work on a national holiday is paid double, which adds ${amt}`,
         cite: cite("tw.holiday"),
       });
     } else if (g.kind === "day_off") {
@@ -201,7 +225,11 @@ export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): R
   return out;
 }
 
-export function templateExplanation(c: Computation, shifts: Shift[], rules: RuleRecord[] = []): { text: string; textZh: string; messageToEmployer: string } {
+export function templateExplanation(
+  c: Computation,
+  shifts: Shift[],
+  rules: RuleRecord[] = [],
+): { text: string; textZh: string; messageToEmployer: string; messageTranslation: string; messageLang: "zh" | "en" } {
   const cur = c.currency;
   const exp = money(c.expectedTotal, cur);
   const paid = c.paidTotal !== undefined ? money(c.paidTotal, cur) : null;
@@ -210,44 +238,45 @@ export function templateExplanation(c: Computation, shifts: Shift[], rules: Rule
   const tw = cur === "TWD";
 
   const text = [
-    `You worked ${c.workedHours} hours in ${shifts.length} shift(s). Based on the official rules retrieved, the expected pay is ${exp}.`,
-    paid ? (gap ? `The payslip shows ${paid}, so ${gap} is missing.` : `The payslip shows ${paid}. No shortfall was found.`) : "No total was found on the payslip.",
+    `You worked ${c.workedHours} hours in ${shifts.length} shift(s). Based on what you entered and the official rules retrieved, the expected pay is ${exp}.`,
+    paid ? (gap ? `The payslip shows ${paid}, so you may be owed ${gap}.` : `The payslip shows ${paid}. No shortfall was found.`) : "No amount paid was found on the payslip, so there is no difference to show.",
     rs.length ? `Why: ${rs.map((r) => `${r.en} (${r.cite.en})`).join(". ")}.` : "No overtime, holiday or minimum wage rule changed the amount.",
   ].join(" ");
   const textZh = [
-    `你這期上了 ${shifts.length} 個班，共 ${c.workedHours} 小時。依這次取得的官方規定，應領 ${exp}。`,
-    paid ? (gap ? `薪資單是 ${paid}，少了 ${gap}。` : `薪資單是 ${paid}，沒有短少。`) : "薪資單上找不到實領金額。",
+    `你這期上了 ${shifts.length} 個班，共 ${c.workedHours} 小時。依你輸入的資料和這次取得的官方規定，應領 ${exp}。`,
+    paid ? (gap ? `薪資單是 ${paid}，你可能少領了 ${gap}。` : `薪資單是 ${paid}，沒有短少。`) : "薪資單上沒讀到實領或應發金額，所以沒有算差額。",
     rs.length ? `原因：${rs.map((r) => `${r.zh}（${r.cite.zh}）`).join("；")}。` : "這期沒有加班、國定假日或最低工資的問題。",
   ].join("");
 
   const dates = shifts.map((s) => s.date).sort();
-  const span = dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ${tw ? "至" : "to"} ${dates.at(-1)}`) : "";
-  let messageToEmployer: string;
-  if (!gap) {
-    messageToEmployer = tw ? "這次核對沒有發現短少，不需要寄信給雇主。" : "No shortfall was found, so there is nothing to ask your employer about.";
-  } else if (tw) {
-    messageToEmployer = [
-      "您好，",
-      `我核對了 ${span} 的班表和薪資單：總工時 ${c.workedHours} 小時，依勞動部公告與勞動基準法計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
-      rs.length ? "差額主要來自：" : "",
-      ...rs.map((r, i) => `${i + 1}. ${r.zh}（${r.cite.zh}）。`),
-      "我附上一頁式計算報告，裡面有每一天的計算方式和官方條文連結。想請您幫忙確認，如果是我算錯了，也請告訴我。謝謝！",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  } else {
-    messageToEmployer = [
-      "Hi,",
-      `I checked my schedule against my payslip for ${span}. I worked ${c.workedHours} hours. Using the state's published rules, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
-      rs.length ? "The difference comes from:" : "",
-      ...rs.map((r, i) => `${i + 1}. ${r.en} (${r.cite.en}).`),
-      "I have attached a one-page report with the calculation for each day and links to the official rules. Could you take a look? If I have missed something, please let me know.",
-      "Thank you.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-  return { text, textZh, messageToEmployer };
+  const spanOf = (sep: string) => (dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ${sep} ${dates.at(-1)}`) : "");
+  const zhMsg = !gap
+    ? "這次核對沒有發現短少，不需要寄信給雇主。"
+    : [
+        "您好，",
+        `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
+        rs.length ? "差額主要來自：" : "",
+        ...rs.map((r, i) => `${i + 1}. ${r.zh}（${r.cite.zh}）。`),
+        "我附上一頁式計算報告，裡面有每一天的計算方式和官方條文連結。想請您幫忙確認，如果是我算錯了，也請告訴我。謝謝！",
+      ]
+        .filter(Boolean)
+        .join("\n");
+  const enMsg = !gap
+    ? "No shortfall was found, so there is nothing to ask your employer about."
+    : [
+        "Hi,",
+        `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
+        rs.length ? "The difference comes from:" : "",
+        ...rs.map((r, i) => `${i + 1}. ${r.en} (${r.cite.en}).`),
+        "I have attached a one-page report with the calculation for each day and links to the official rules. Could you take a look? If I have missed something, please let me know.",
+        "Thank you.",
+      ]
+        .filter(Boolean)
+        .join("\n");
+  // The message is in the employer's language; the other language is a translation for the worker.
+  const messageToEmployer = tw ? zhMsg : enMsg;
+  const messageTranslation = tw ? enMsg : zhMsg;
+  return { text, textZh, messageToEmployer, messageTranslation, messageLang: tw ? "zh" : "en" };
 }
 
 /** Every number a model may mention. */

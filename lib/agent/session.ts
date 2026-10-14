@@ -2,7 +2,7 @@ import { limits, modelChain, priceForModel, type Tier } from "../config";
 import { isAllowedUrl } from "../domains";
 import type { ChatMessage, ChatProvider, ToolCall, ToolSchema } from "../llm/provider";
 import type { SearchProvider } from "../search/provider";
-import { emptyUsage, type Citation, type TraceStep, type Usage } from "../types";
+import { emptyUsage, type Citation, type RetrievedDoc, type TraceStep, type Usage } from "../types";
 import { DocStore } from "./citations";
 
 // Domain-independent agent core.
@@ -40,6 +40,17 @@ export interface LoopOptions {
   maxSteps?: number;
   /** Output token budget per model turn. Reasoning models need room to think before the tool call. */
   maxTokens?: number;
+  /**
+   * Checked after each turn's tool calls. True = the task is complete, so the
+   * loop ends without spending another model turn on "finish".
+   */
+  isDone?: () => boolean;
+  /** Epoch ms. No new model turn starts after this; code fallback takes over. */
+  deadlineAt?: number;
+  /** false = ask the model to answer without a thinking phase (faster tool calls). Default: provider default. */
+  reasoning?: boolean;
+  /** Shown in the trace when several loops run at once, e.g. "rates" and "law". */
+  label?: string;
 }
 
 export interface LoopResult {
@@ -162,6 +173,10 @@ export class AgentSession {
   readonly modelsUsed = new Set<string>();
   private t0 = Date.now();
   private tavilyCalls = 0;
+  /** Extracts in flight, so a prefetch and the agent's fetch of the same URL share one request. */
+  private inflight = new Map<string, Promise<RetrievedDoc | null>>();
+  /** Every search this run made, with its results, for the report. */
+  readonly searches: { query: string; domains: string[]; hits: { url: string; title: string }[] }[] = [];
 
   constructor(private opts: SessionOptions) {}
 
@@ -225,26 +240,64 @@ export class AgentSession {
         content: h.snippet,
         via: this.search.kind === "tavily" ? "tavily_search" : "fixture_search",
         retrievedAt: new Date().toISOString(),
+        foundBy: "search",
       });
-    this.emit({ kind: "tool", name: "search_official", detail: `"${query.slice(0, 60)}" -> ${hits.length} result(s)` });
+    this.searches.push({ query, domains: domains ?? [], hits: hits.map((h) => ({ url: h.url, title: h.title })) });
+    this.emit({
+      kind: "tool",
+      name: "search_official",
+      detail: `"${query.slice(0, 60)}" -> ${hits.length} result(s)`,
+      detailZh: `搜尋「${query.slice(0, 40)}」，找到 ${hits.length} 筆`,
+    });
     return hits;
   }
 
-  async fetchOfficial(url: string, focus?: string) {
+  /**
+   * Full text of one allowlisted page. A page already retrieved in this run (or
+   * being retrieved by a prefetch) is reused without another Tavily call.
+   */
+  async fetchOfficial(url: string, focus?: string, foundBy: "seed" | "search" = "seed"): Promise<RetrievedDoc | null> {
     if (!isAllowedUrl(url)) {
-      this.emit({ kind: "guard", name: "domain_blocked", detail: `Refused non-official URL ${url.slice(0, 80)}` });
+      this.emit({ kind: "guard", name: "domain_blocked", detail: `Refused non-official URL ${url.slice(0, 80)}`, detailZh: `拒絕非官方網址 ${url.slice(0, 80)}` });
       throw new Error("URL is not on the official domain allowlist");
     }
+    // `focus` only picks which parts the model sees, see pageView().
+    void focus;
+    const have = this.docs.page(url);
+    if (have) return have;
+    const pending = this.inflight.get(url);
+    if (pending) return pending;
     if (this.tavilyCalls >= limits().maxTavilyCallsPerRun) throw new Error("fetch budget for this run is used up");
     this.tavilyCalls++;
-    // Always the full page (one cached extract per URL); `focus` only picks which
-    // parts the model sees, see pageView().
-    void focus;
-    const { doc, credits } = await this.search.extract(url);
-    this.usage.tavilyCredits += credits;
-    if (doc) this.docs.add(doc);
-    this.emit({ kind: "tool", name: "fetch_official", detail: doc ? `${doc.title.slice(0, 60)} (${doc.content.length} chars)` : `${url.slice(0, 80)} -> no text` });
-    return doc;
+    const p = (async () => {
+      const { doc, credits } = await this.search.extract(url);
+      this.usage.tavilyCredits += credits;
+      const out = doc ? { ...doc, foundBy } : null;
+      if (out) this.docs.add(out);
+      this.emit({
+        kind: "tool",
+        name: "fetch_official",
+        detail: out ? `${out.title.slice(0, 60)} (${out.content.length} chars)${foundBy === "search" ? ", found by search" : ""}` : `${url.slice(0, 80)} -> no text`,
+        detailZh: out ? `讀取官方網頁：${out.title.slice(0, 40)}（${out.content.length} 字）${foundBy === "search" ? "，由搜尋找到" : ""}` : `${url.slice(0, 80)} 讀不到內容`,
+      });
+      return out;
+    })();
+    this.inflight.set(url, p);
+    try {
+      return await p;
+    } finally {
+      this.inflight.delete(url);
+    }
+  }
+
+  /** Start retrieving pages before the agent asks for them. Failures are left for the agent to see. */
+  prefetch(urls: string[]): Promise<void> {
+    return Promise.all(urls.map((u) => this.fetchOfficial(u).catch(() => null))).then(() => undefined);
+  }
+
+  /** Seconds since the run started. */
+  elapsedMs(): number {
+    return Date.now() - this.t0;
   }
 
   /** Tool-calling loop on the model chain starting at startTier (default super). */
@@ -295,7 +348,8 @@ export class AgentSession {
         const tool = o.tools.find((t) => t.schema.function.name === name);
         if (!tool) throw new Error(`unknown tool ${name}`);
         const out = await tool.handler(a, ctx);
-        this.emit({ kind: "tool", name, detail: typeof out === "object" && out && "detail" in out ? String((out as { detail: unknown }).detail).slice(0, 120) : "ok" });
+        const o2 = (typeof out === "object" && out ? out : {}) as { detail?: unknown; detailZh?: unknown };
+        this.emit({ kind: "tool", name, detail: o2.detail !== undefined ? String(o2.detail).slice(0, 120) : "ok", detailZh: o2.detailZh !== undefined ? String(o2.detailZh).slice(0, 120) : undefined });
         return JSON.stringify(out ?? { ok: true });
       } catch (e) {
         this.emit({ kind: "guard", name: `${name}_error`, detail: (e as Error).message.slice(0, 120) });
@@ -307,6 +361,11 @@ export class AgentSession {
     const maxSteps = o.maxSteps ?? L.maxAgentSteps;
     let step = 0;
     for (; step < maxSteps && !finished; step++) {
+      if (o.deadlineAt && Date.now() > o.deadlineAt) {
+        stoppedEarly = "Time limit for the agent reached.";
+        this.emit({ kind: "guard", name: "time_stop", detail: stoppedEarly, detailZh: "代理的時間用完了，剩下的由程式從已取得的原文補上。" });
+        break;
+      }
       if (this.overBudget()) {
         stoppedEarly = "Per-run model budget reached.";
         this.emit({ kind: "guard", name: "budget_stop", detail: stoppedEarly });
@@ -314,7 +373,7 @@ export class AgentSession {
       }
       let res;
       try {
-        res = await this.llm.chat(chain, messages, { tools: schemas, maxTokens: o.maxTokens ?? L.maxCompletionTokens, temperature: 0 });
+        res = await this.llm.chat(chain, messages, { tools: schemas, maxTokens: o.maxTokens ?? L.maxCompletionTokens, temperature: 0, reasoning: o.reasoning });
       } catch (e) {
         stoppedEarly = `Model call failed: ${(e as Error).message.slice(0, 120)}`;
         this.emit({ kind: "guard", name: "model_error", detail: stoppedEarly });
@@ -327,11 +386,12 @@ export class AgentSession {
         kind: "model",
         name: "agent",
         model: res.model,
-        detail: calls.length
-          ? `requested ${calls.map((c) => c.function.name).join(", ")}`
-          : cutOff
-            ? "ran out of output tokens before calling a tool"
-            : "replied without tools",
+        detail:
+          (o.label ? `[${o.label}] ` : "") +
+          (calls.length ? `requested ${calls.map((c) => c.function.name).join(", ")}` : cutOff ? "ran out of output tokens before calling a tool" : "replied without tools"),
+        detailZh:
+          (o.label ? `［${o.label === "rates" ? "費率與假日" : o.label === "law" ? "法條" : o.label}］` : "") +
+          (calls.length ? `代理呼叫 ${calls.map((c) => c.function.name).join("、")}` : cutOff ? "代理還沒呼叫工具就用完輸出長度" : "代理沒有呼叫工具"),
       });
       messages.push({ role: "assistant", content: res.message.content ?? null, tool_calls: calls.length ? calls : undefined });
       if (calls.length === 0) {
@@ -357,6 +417,16 @@ export class AgentSession {
       for (const c of calls) if (!results.has(c.id) && c.function.name !== "finish") results.set(c.id, await exec(c));
       for (const c of calls) if (!results.has(c.id)) results.set(c.id, await exec(c));
       for (const c of calls) messages.push({ role: "tool", tool_call_id: c.id, content: results.get(c.id)! });
+      if (!finished && o.isDone?.()) {
+        finished = true;
+        finishSummary = "complete";
+        this.emit({
+          kind: "info",
+          name: "auto_finish",
+          detail: `${o.label ? `[${o.label}] ` : ""}Every rule is recorded and checked, so the loop ends without another model turn.`,
+          detailZh: "這一組規定都已記錄並通過檢查，不用再多跑一輪模型。",
+        });
+      }
     }
     if (!finished && !stoppedEarly && step >= maxSteps) {
       stoppedEarly = "Agent step limit reached.";

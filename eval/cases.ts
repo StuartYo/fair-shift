@@ -49,13 +49,14 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-holiday-unpaid",
     title: "Taipei store clerk, worked National Day, paid straight time",
+    titleZh: "台北店員國慶日上班，只拿到原時薪",
     input: {
       jurisdiction: "TW",
       // The sample's employer set Thursday as the rest day and Sunday as the regular day off.
       restDayWeekday: 4,
       dayOffWeekday: 0,
       scheduleText: "【10月班表】（範例資料）\n10/5(一) 17:00-22:00\n10/7(三) 下午5點到10點\n10/10(六) 10:00~16:00\n10/12(一) 17:00-23:00",
-      payslipText: "薪資單 2026/10/01 - 2026/10/15\n時薪：196\n總工時：22 小時\n實發金額：4,312",
+      payslipText: "薪資單 2026/10/01 - 2026/10/15\n時薪：196\n總工時：22 小時\n應發金額：4,312",
     },
     expected: { shifts: 4, workedHours: 22, expectedTotal: 5488, paidTotal: 4312, shortfall: 1176, minWageUsed: 196, holidayDates: ["2026-10-10"] },
     why: "Rest day Thursday, day off Sunday, so Saturday 10-10 is a workday that is a national holiday. 16 h x 196 + 6 h x 196 x 2 (Art. 39, 國慶日 10-10) = 3136 + 2352 = 5488.",
@@ -63,6 +64,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-old-rate-overtime",
     title: "Still paid the 2025 rate in 2026, one overtime hour",
+    titleZh: "2026 年還在領 2025 年的時薪，加班 1 小時",
     input: {
       jurisdiction: "TW",
       scheduleText: "2026-10-13 09:00-19:00 休息60分\n2026-10-14 09:00-18:00 休息60分",
@@ -74,6 +76,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-rest-day",
     title: "Rest day shift paid as a normal day",
+    titleZh: "休息日上班卻按平日計薪",
     input: {
       jurisdiction: "TW",
       scheduleText: "10/15 (四) 18:00-22:00\n10/17 (六) 休息日 10:00-15:00",
@@ -85,6 +88,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-clean",
     title: "Clean: weekday shifts paid correctly",
+    titleZh: "對照組：平日班、薪水正確",
     input: {
       jurisdiction: "TW",
       scheduleText: "10/19 09:00-13:00\n10/20 09:00-13:00\n10/21 13:00-18:00",
@@ -96,6 +100,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-2027-pending",
     title: "January 2027 shifts at the 2026 rate (new rate decided, pending approval)",
+    titleZh: "2027 年 1 月還在用 2026 年的時薪（新費率已決定）",
     input: {
       jurisdiction: "TW",
       scheduleText: "1/5 17:00-22:00\n1/6 17:00-22:00",
@@ -107,6 +112,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-weekly-40",
     title: "Part-timer, six 7-hour days in one week, hours over 40 paid as straight time",
+    titleZh: "一週 6 天、每天 7 小時，超過 40 小時沒算加班",
     input: {
       jurisdiction: "TW",
       scheduleText:
@@ -119,6 +125,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-mid-autumn-2026",
     title: "Worked Mid-Autumn Festival 2026 (lunar holiday), paid straight time",
+    titleZh: "2026 中秋節上班，只拿原時薪",
     input: {
       jurisdiction: "TW",
       scheduleText: "9/24(四) 17:00-22:00\n9/25(五) 中秋 17:00-22:00",
@@ -130,6 +137,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "tw-lunar-new-year-2027",
     title: "Lunar New Year 2027: two holiday shifts and one normal day, all paid straight time",
+    titleZh: "2027 春節：兩天國定假日加一天平日，都按原時薪",
     input: {
       jurisdiction: "TW",
       scheduleText: "2027/2/4(四) 17:00-22:00\n2027/2/5(五) 10:00-15:00\n2027/2/10(三) 17:00-22:00",
@@ -151,6 +159,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "ny-weekly-overtime",
     title: "NYC barista, 42.5 hours in one week, no overtime paid",
+    titleZh: "紐約市咖啡師一週 42.5 小時，沒付加班費",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "nyc",
@@ -163,6 +172,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "ny-old-rate-upstate",
     title: "Upstate worker still on the 2025 rate",
+    titleZh: "紐約上州還在領 2025 年的時薪",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "rest",
@@ -175,6 +185,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "ny-tipped-overtime",
     title: "NYC food server, 42 hours, overtime paid at 1.5x the cash wage instead of 1.5x the full rate",
+    titleZh: "紐約市服務生 42 小時，加班費用現金工資算",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "nyc",
@@ -189,6 +200,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "ny-spread-of-hours",
     title: "NYC line cook, split shift spanning 12 hours, no spread-of-hours pay",
+    titleZh: "紐約市廚師拆班跨 12 小時，沒付跨度工資",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "nyc",
@@ -202,6 +214,7 @@ export const EVAL_CASES: EvalCase[] = [
   {
     id: "ny-clean",
     title: "Clean: NYC part-timer paid above minimum, under 40 hours",
+    titleZh: "對照組：紐約市兼職、時薪高於最低、未滿 40 小時",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "nyc",
@@ -216,6 +229,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: "tw-messy-line-weekdays",
     group: "messy",
     title: "LINE message with weekdays only, 18-22 style hours, 休1小時",
+    titleZh: "LINE 班表只寫星期、18-22、休1小時",
     input: {
       jurisdiction: "TW",
       scheduleText: "店長：下週班表喔～\n週一 18-22\n週三 18-22\n週五 18-22\n週六 12-20 休1小時",
@@ -228,6 +242,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: "tw-messy-overnight",
     group: "messy",
     title: "Overnight shifts ending after midnight, paid as 6 hours each",
+    titleZh: "跨夜大夜班，每班只算 6 小時",
     input: {
       jurisdiction: "TW",
       scheduleText: "大夜班\n10/16(五) 22:00-06:00 休1小時（跨夜）\n10/17(六) 22:00～06:00 休息1小時",
@@ -240,6 +255,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: "tw-messy-chinese-times",
     group: "messy",
     title: "Times written in words (晚上6點到11點), rate below minimum wage",
+    titleZh: "用中文寫時間（晚上6點到11點），時薪低於最低工資",
     input: {
       jurisdiction: "TW",
       scheduleText: "10/26 晚上6點到11點\n10/27 下午2點半到晚上9點半 休息30分鐘\n10/28 早上9點到下午1點",
@@ -252,6 +268,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: "tw-messy-fullwidth",
     group: "messy",
     title: "Full-width digits and punctuation, one half hour not paid",
+    titleZh: "全形數字，少付半小時",
     input: {
       jurisdiction: "TW",
       scheduleText: "１０／２９（四）　１７：００～２２：００\n１０／３０（五）　１７：００～２２：３０",
@@ -264,6 +281,7 @@ export const EVAL_CASES: EvalCase[] = [
     id: "ny-messy-text",
     group: "messy",
     title: "Texted schedule (mon 10/19 5-10pm), NYC rate below minimum",
+    titleZh: "簡訊打的班表（mon 10/19 5-10pm），紐約市時薪低於最低",
     input: {
       jurisdiction: "US-NY",
       nyRegion: "nyc",

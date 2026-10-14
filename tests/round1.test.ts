@@ -47,7 +47,9 @@ describe("messy schedules", () => {
   it("says plainly when no shift can be read, instead of showing NT$0", async () => {
     const r = await run({ jurisdiction: "TW", scheduleText: "週五 18-22\n週六 12-20 休1小時", payslipText: "時薪 200" });
     expect(r.shifts).toEqual([]);
-    expect(r.parseError?.zh).toContain("我看不懂這份班表");
+    expect(r.parseError?.part).toBe("schedule");
+    expect(r.parseError?.zh).toContain("問題在「班表」");
+    expect(r.parseError?.en).toContain("schedule box");
     expect(r.parseError?.unread).toEqual(["週五 18-22", "週六 12-20 休1小時"]);
     expect(r.trace.some((t) => t.name === "no_shifts")).toBe(true);
   });

@@ -17,10 +17,18 @@ export async function GET() {
     caps: {
       perIpPerHour: L.perIpPerHour,
       perIpPerDay: L.perIpPerDay,
+      globalRunsPerDay: L.globalRunsPerDay,
+      globalUsdPerDay: L.globalUsdPerDay,
+      globalTavilyCreditsPerDay: L.globalTavilyCreditsPerDay,
       perRunUsd: L.perRunUsd,
       maxAgentSteps: L.maxAgentSteps,
       maxTavilyCallsPerRun: L.maxTavilyCallsPerRun,
+      agentDeadlineMs: Number(process.env.APP_AGENT_DEADLINE_MS || 40_000),
     },
+    // Counters live in memory on each server instance (no database), so this is
+    // what the instance answering this request has left today (UTC).
+    capsScope: "per server instance",
     remainingToday: globalRemaining(),
+    whenCapped: "Page samples show a saved live result, labelled as such; other checks get a 'try again tomorrow' message.",
   });
 }

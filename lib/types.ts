@@ -7,6 +7,8 @@ export interface RetrievedDoc {
   content: string;
   via: "tavily_search" | "tavily_extract" | "fixture_search" | "fixture_extract";
   retrievedAt: string;
+  /** How the URL was found: a seed page from the catalog, or a result of a search in this run. */
+  foundBy?: "seed" | "search";
 }
 
 /** A quote that has been checked against retrieved text. */
@@ -16,6 +18,7 @@ export interface Citation {
   quote: string;
   verified: boolean;
   via: RetrievedDoc["via"];
+  foundBy?: RetrievedDoc["foundBy"];
 }
 
 export interface TraceStep {
@@ -23,6 +26,8 @@ export interface TraceStep {
   kind: "model" | "tool" | "guard" | "info";
   name: string;
   detail: string;
+  /** Same detail in Traditional Chinese, for the Chinese page. */
+  detailZh?: string;
   model?: string;
 }
 

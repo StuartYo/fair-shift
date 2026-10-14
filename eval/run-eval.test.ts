@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import fixtures from "../fixtures/official-pages.json";
 import { currentMode, liveSearchWithMockModel, modeNote } from "../lib/config";
@@ -10,7 +10,10 @@ import { runFairShift } from "../lib/wage/run";
 import { runBaseline, scoreBaseline } from "./baseline";
 import { EVAL_CASES } from "./cases";
 import { HELDOUT_CASES } from "./heldout";
-import { evalMarkdown, groupLine, headlineTable, recordedLine, type EvalRow, type EvalSummary } from "./report";
+import { REALSTYLE_CASES } from "./realstyle";
+import { SAMPLE_CASES } from "./samples";
+import type { FairShiftReport } from "../lib/wage/types";
+import { evalMarkdown, groupLine, headlineTable, recordedLine, speedSearchLine, type EvalRow, type EvalSummary } from "./report";
 
 // npm run eval
 // Live (both keys set): runs Fair Shift, the same agent with quote checks off,
@@ -31,7 +34,8 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
   it("runs every case", { timeout: 60 * 60_000 }, async () => {
     const mode = currentMode();
     const only = (process.env.EVAL_ONLY || "").split(",").filter(Boolean);
-    const all = [...EVAL_CASES, ...HELDOUT_CASES];
+    const all = [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES];
+    const saved: Record<string, FairShiftReport> = {};
     const cases = only.length ? all.filter((c) => only.includes(c.id)) : all;
     const today = new Date().toISOString().slice(0, 10);
     const rows: EvalRow[] = [];
@@ -40,7 +44,11 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
     let spent = 0;
     for (const c of cases) {
       const p = getProviders({ fixtures: fixtures as FixtureSet, script: rulesMockScript() });
+      const t0 = Date.now();
       const r = await runFairShift(c.input, { llm: p.llm, search: p.search, mode: p.mode, modeNote: p.modeNote });
+      const sec = (Date.now() - t0) / 1000;
+      if (SAMPLE_CASES.some((x) => x.id === c.id)) saved[c.id] = r;
+      const ask = c.expected.needsInput;
       if (mode === "live") r.modelsUsed.forEach((m) => agentModels.add(m));
       spent += r.usage.estCostUsd;
       const tol = c.input.jurisdiction === "TW" ? 1 : 0.01;
@@ -55,7 +63,11 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
         truthMinWage: c.expected.minWageUsed,
         fairShift: r.computation.expectedTotal,
         fairShiftShortfall: r.computation.shortfall,
-        fairShiftCorrect: Math.abs(r.computation.expectedTotal - c.expected.expectedTotal) <= tol,
+        fairShiftCorrect: ask ? r.needsInput?.kind === ask && r.computation.lines.length === 0 : !r.needsInput && Math.abs(r.computation.expectedTotal - c.expected.expectedTotal) <= tol,
+        truthNeedsInput: ask,
+        fairShiftSec: Math.round(sec * 10) / 10,
+        searchCalls: r.searchNotes?.length ?? 0,
+        searchContributed: !!r.searchNotes?.some((n) => n.contributed),
         fairShiftMinWage: minWageFor(r.rules, lastDate, c.input.nyRegion)?.value,
         fairShiftCitations: r.rules.reduce((a, x) => a + x.citations.length, 0) + r.holidays.reduce((a, h) => a + h.citations.length, 0),
         fairShiftCostUsd: r.usage.estCostUsd,
@@ -72,7 +84,7 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
         spent += r2.usage.estCostUsd;
         row.noVerify = {
           expectedTotal: r2.computation.expectedTotal,
-          correct: Math.abs(r2.computation.expectedTotal - c.expected.expectedTotal) <= tol,
+          correct: ask ? r2.needsInput?.kind === ask : !r2.needsInput && Math.abs(r2.computation.expectedTotal - c.expected.expectedTotal) <= tol,
           costUsd: r2.usage.estCostUsd,
           recorded: r2.rules.length + r2.holidays.length,
         };
@@ -116,10 +128,16 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
     const stem = `eval/results/${label}-${summary.ranAt.replace(/[:.]/g, "-")}`;
     writeFileSync(`${stem}.json`, JSON.stringify({ summary, rows }, null, 2));
     writeFileSync(`${stem}.md`, evalMarkdown(summary, rows));
+    // Live results for the page samples: served (labelled) when the public demo is capped or a run fails.
+    if (mode === "live" && !only.length) {
+      const pre = JSON.parse(readFileSync("fixtures/precomputed.json", "utf8"));
+      writeFileSync("fixtures/precomputed.json", JSON.stringify({ _note: pre._note, ranAt: summary.ranAt, source: `${stem}.json`, reports: saved }));
+    }
     console.log(`\nWrote ${stem}.json and ${stem}.md\n`);
     console.log(headlineTable(summary, rows));
     console.log(recordedLine(rows));
     console.log(groupLine(rows));
+    console.log(speedSearchLine(rows));
     expect(rows.length).toBe(cases.length);
   });
 });
