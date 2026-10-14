@@ -30,6 +30,7 @@ export interface Diagnosis {
 
 const FIRST_RUN = "realworld-2026-10-14T03-26-59-071Z";
 const AFTER_FIXES = "realworld-2026-10-14T03-57-13-716Z";
+const RERUN_DEPLOYED = "realworld-2026-10-14T07-08-33-074Z";
 
 export const DIAGNOSIS: Record<string, Record<string, Diagnosis>> = {
   [FIRST_RUN]: {
@@ -109,4 +110,41 @@ export const DIAGNOSIS: Record<string, Record<string, Diagnosis>> = {
     "post-ad-weekday-range": { category: "fair_shift_bug", note: "Unchanged (not fixed): (不六日) ignored, four weekend days added; marked low confidence with the line listed." },
     "post-ad-duration-only": { category: "fair_shift_scope", note: "Unchanged: a date and '5 hours' with no clock times." },
   },
+  // Rerun on the deployed code (a4386f6: 2cc3b7c's fixes, 8d08beb's weekday dating, b9d3a04's message change).
+  // Same reasons as the run after fixes, except one New York check where the model misread the schedule.
+  [RERUN_DEPLOYED]: {
+    "tw-court-ctdv13-jun": { category: "court_rounding", note: "1.34 instead of 4/3: NT$1 per overtime hour." },
+    "tw-court-ctdv13-jul": { category: "court_rounding", note: "1.34 instead of 4/3." },
+    "tw-court-ctdv13-aug": { category: "court_rounding", note: "1.34 instead of 4/3." },
+    "tw-court-ctdv13-restdays": {
+      category: "legal_reading",
+      note: "Unchanged: Fair Shift uses 1 1/3 and 1 2/3 as the total rest day rate for an hourly worker; the court added them on top of the hourly pay already paid (NT$4,296 = 23 rest day hours of base pay plus rounding).",
+    },
+    "tw-court-pcdv77-jan": { category: "court_claim_limited", note: "Unchanged: holiday on 2024-01-01 and weekly overtime past 40 hours, which the worker did not claim; NT$9 more than the first run because hours are now exact to the minute." },
+    "tw-court-pcdv77-feb": { category: "court_rounding", note: "Now the exact 10,431; the court's table rounds each row." },
+    "tw-court-ksdv12": { category: "fair_shift_scope", note: "Unchanged: no agreed rate, so Fair Shift asks instead of assuming the minimum wage." },
+    "tw-court-ptdv21-2022": { category: "court_error", note: "Unchanged: the court's rows add up to 39 hours, it wrote 40." },
+    "tw-court-tcdv24-2023": { category: "court_rounding", note: "2023-09-28 is now a normal day: 176 x 4/3 = 234.67 vs the court's 176 x 1.34 = 236." },
+    "ny-court-24-4349-apr2024": {
+      category: "court_claim_limited",
+      note: "Now adds one hour at the $16 minimum wage on each of the 6 days over 10 hours (12 NYCRR 146-1.6, restaurant workers whatever their rate); the worker abandoned that claim.",
+    },
+    "ny-court-25-3219-2024": {
+      category: "legal_reading",
+      note: "New difference, now that the minimum wage is found. Fair Shift owes spread-of-hours pay on the three 12-hour days only to the extent pay is below the minimum wage for the hours plus one hour (12 NYCRR 142-2.4 'in addition to the minimum wage required'): 3 x (16 x 13 - 17 x 12) = $12. The court denies spread pay outright for any period paid above the minimum wage. In the first run this case matched only because the minimum wage was missing.",
+    },
+    "ny-court-25-3219-2025": { category: "legal_reading", note: "Same reading as 2024, with the $16.50 minimum: 3 x (16.50 x 13 - 17 x 12) = $31.50." },
+    "ny-court-25-2674-2024": { category: "court_claim_limited", note: "Spread-of-hours pay on 6 days of 11 hours (my split of 66 hours), which the worker abandoned: +$96." },
+    "ny-court-25-1177-jan2025": {
+      category: "fair_shift_bug",
+      note: "Nemotron Nano read a seventh 14 h 20 min shift that is not in the schedule (100.33 h instead of 86). The rule-based cross-check disagreed, so the page marked the reading low confidence and warned that the payslip's 86 hours do not match the hours read; the amount is wrong but flagged. The run after fixes read the same input right and matched exactly. Not fixed: the model's reading varies between runs, and these warnings are the safeguard.",
+    },
+    "ny-court-24-8391-2024": {
+      category: "court_method",
+      note: "The court paid only the half-time difference on overtime hours it treated as unpaid by dividing by 40 ($186.88); Fair Shift pays 1.5 x $16.25 on them ($560.63) plus the same $96 spread-of-hours pay the court awarded.",
+    },
+    "post-q-tutor-holiday": { category: "fair_shift_scope", note: "Unchanged: a date with a length but no clock times; no shift read, and the page says so." },
+    "post-ad-weekday-range": { category: "fair_shift_bug", note: "Unchanged (not fixed): (不六日) ignored, four weekend days added; marked low confidence with the line listed." },
+    "post-ad-duration-only": { category: "fair_shift_scope", note: "Unchanged: a date and '5 hours' with no clock times." },
+  }
 };
