@@ -20,3 +20,6 @@ eval/results/mock-*
 
 # Tavily disk cache for eval / feasibility runs
 .cache/
+
+# Real-world eval: private source URLs for the paraphrased posts
+eval/realworld/_sources_private.md
