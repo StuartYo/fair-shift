@@ -296,11 +296,11 @@ export function realworldBlock(files: { file: string; res: RealworldResult }[], 
     `Court figures: ${n} checks from ${s.judgments.tw} Taiwan judgments and ${s.judgments.ny} New York decisions (${s.notUsed.tw} of ${s.notUsed.twRead} Taiwan and ${s.notUsed.ny} of ${s.notUsed.nyRead} New York decisions read were not usable). First run on the frozen set: ${md(first.file)} (code \`${first.res.summary.codeCommit}\`). Latest: ${md(last.file)} (code \`${s.codeCommit}\`).`,
   );
   lines.push("");
-  lines.push(`| Agreement with the court's own figure | Fair Shift, first run | Fair Shift, latest | Same model alone, latest |`);
+  lines.push(`| Agreement with the court's own figure | Fair Shift, first run | Fair Shift, latest | Same model alone |`);
   lines.push("|---|---|---|---|");
   lines.push(row("Exact", ["exact"]));
   lines.push(row("Exact or within NT$1 / $0.01", ["exact", "within_tolerance"]));
-  lines.push(row("Within 5%", ["exact", "within_tolerance", "within_5pct"]));
+  lines.push(row("Within 5% (includes the rows above)", ["exact", "within_tolerance", "within_5pct"]));
   lines.push(row("Off by more than 5%", ["off"]));
   lines.push(row("No amount (stopped and asked)", ["no_amount"]));
   lines.push("");
@@ -311,13 +311,24 @@ export function realworldBlock(files: { file: string; res: RealworldResult }[], 
     const c = diag[r.id]?.category ?? "not diagnosed";
     cats.set(c, (cats.get(c) ?? 0) + 1);
   }
+  const PLAIN: Record<string, string> = {
+    fair_shift_bug: "a Fair Shift bug",
+    fair_shift_scope: "outside what Fair Shift does",
+    court_claim_limited: "the worker claimed less than the law gives",
+    court_method: "the court's own formula",
+    legal_reading: "two readings of a rule",
+    court_error: "the court's table does not add up",
+    court_rounding: "the court rounded the multipliers",
+    facts_reconstructed: "my reconstruction of the facts",
+  };
   if (offRows.length)
     lines.push(
-      `- Latest run, why the ${offRows.length} checks that are not within NT$1 / $0.01 differ (my diagnosis after the run, eval/realworld/diagnosis.ts): ${[...cats.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([c, k]) => `${c.replace(/_/g, " ")} ${k}`)
+      `- Latest run, why the ${offRows.length} checks that are not within NT$1 / $0.01 differ (my diagnosis after the run, in eval/realworld/diagnosis.ts): ${[...cats.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([c, k]) => `${PLAIN[c] ?? c.replace(/_/g, " ")} (${k})`)
         .join(", ")}.`,
     );
+  if (s.baselineFrom) lines.push(`- The model-alone column comes from the first run (same model, prompt and inputs; it does not depend on Fair Shift's code).`);
   const p1 = postCounts(first.res.posts);
   const p2 = postCounts(last.res.posts);
   lines.push(

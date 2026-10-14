@@ -1,0 +1,2307 @@
+{
+  "summary": {
+    "mode": "live",
+    "modeNote": "Live: Nemotron on Nebius Token Factory, sources retrieved with Tavily.",
+    "ranAt": "2026-10-14T03:57:13.716Z",
+    "codeCommit": "2cc3b7c",
+    "dirtyTree": false,
+    "models": {
+      "agent": [
+        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+        "nvidia/Nemotron-3-Ultra-550b-a55b"
+      ],
+      "baseline": "nvidia/nemotron-3-super-120b-a12b"
+    },
+    "baselineFrom": "realworld-2026-10-14T03-26-59-071Z.json",
+    "costUsd": 0.5155,
+    "tavilyCredits": 10,
+    "notUsed": {
+      "tw": 34,
+      "ny": 5,
+      "twRead": 40,
+      "nyRead": 10
+    },
+    "judgments": {
+      "tw": 6,
+      "ny": 5
+    }
+  },
+  "courts": [
+    {
+      "id": "tw-court-ctdv13-jun",
+      "title": "Store clerk, NT$186/h, June 2024 days with unpaid overtime (court table)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣橋頭地方法院 115 年度勞小字第 13 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=CTDV%2C115%2C%E5%8B%9E%E5%B0%8F%2C13%2C20260731%2C1",
+      "courtFigure": 1744,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "The court uses 1.34 for the first two overtime hours; the statute says plus one third (4/3). 249 vs 248 per hour."
+        }
+      ],
+      "fairShift": {
+        "value": 1736,
+        "diff": -8,
+        "agreement": "within_5pct",
+        "expectedTotal": 13640,
+        "shortfall": 1736,
+        "paidTotal": 11904,
+        "shifts": 8,
+        "hours": 71,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 11904,
+            "shortfall": 0
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.034688,
+        "tavilyCredits": 2,
+        "sec": 46.7
+      },
+      "baseline": {
+        "value": 1002.67,
+        "diff": -741.33,
+        "agreement": "off",
+        "expectedTotal": 12906.67,
+        "shortfall": 1002.67,
+        "minWageUsed": 176,
+        "costUsd": 0.0050853
+      }
+    },
+    {
+      "id": "tw-court-ctdv13-jul",
+      "title": "Store clerk, NT$186/h, July 2024 days with unpaid overtime (court table)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣橋頭地方法院 115 年度勞小字第 13 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=CTDV%2C115%2C%E5%8B%9E%E5%B0%8F%2C13%2C20260731%2C1",
+      "courtFigure": 999,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "1.34 instead of 4/3."
+        }
+      ],
+      "fairShift": {
+        "value": 992,
+        "diff": -7,
+        "agreement": "within_5pct",
+        "expectedTotal": 11408,
+        "shortfall": 992,
+        "paidTotal": 10416,
+        "shifts": 7,
+        "hours": 60,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 10416,
+            "shortfall": 0
+          }
+        ],
+        "agentRecorded": 8,
+        "codeFallback": 0,
+        "costUsd": 0.02737,
+        "tavilyCredits": 1,
+        "sec": 38.1
+      },
+      "baseline": {
+        "value": 2220.8,
+        "diff": 1221.8,
+        "agreement": "off",
+        "expectedTotal": 12636.8,
+        "shortfall": 2220.8,
+        "minWageUsed": 176,
+        "costUsd": 0.003195
+      }
+    },
+    {
+      "id": "tw-court-ctdv13-aug",
+      "title": "Store clerk, NT$186/h, August 2024 days with unpaid overtime (court table)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣橋頭地方法院 115 年度勞小字第 13 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=CTDV%2C115%2C%E5%8B%9E%E5%B0%8F%2C13%2C20260731%2C1",
+      "courtFigure": 2123,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "1.34 instead of 4/3."
+        }
+      ],
+      "fairShift": {
+        "value": 2108,
+        "diff": -15,
+        "agreement": "within_5pct",
+        "expectedTotal": 24428,
+        "shortfall": 2108,
+        "paidTotal": 22320,
+        "shifts": 15,
+        "hours": 128.5,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 22320,
+            "shortfall": 0
+          }
+        ],
+        "agentRecorded": 8,
+        "codeFallback": 0,
+        "costUsd": 0.013675,
+        "tavilyCredits": 0,
+        "sec": 21.6
+      },
+      "baseline": {
+        "value": 3084.81,
+        "diff": 961.81,
+        "agreement": "off",
+        "expectedTotal": 25404.81,
+        "shortfall": 3084.81,
+        "minWageUsed": 163,
+        "costUsd": 0.0072801
+      }
+    },
+    {
+      "id": "tw-court-ctdv13-restdays",
+      "title": "Store clerk, NT$186/h, three rest days and one regular day off worked in July and August 2024",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣橋頭地方法院 115 年度勞小字第 13 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=CTDV%2C115%2C%E5%8B%9E%E5%B0%8F%2C13%2C20260731%2C1",
+      "courtFigure": 8264,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "legal_reading",
+          "note": "The court adds 1 1/3 and 1 2/3 on top of the hourly pay already paid (total 2 1/3 and 2 2/3 of the hourly rate). Fair Shift uses 1 1/3 and 1 2/3 as the total for an hourly worker, following the Ministry of Labor's statement that the hourly minimum wage already includes rest day pay. Expect Fair Shift far below the court on the rest days."
+        },
+        {
+          "kind": "court_rounding",
+          "note": "1.34 and 1.67 instead of 4/3 and 5/3."
+        }
+      ],
+      "fairShift": {
+        "value": 3968,
+        "diff": -4296,
+        "agreement": "off",
+        "expectedTotal": 9734,
+        "shortfall": 3968,
+        "paidTotal": 5766,
+        "shifts": 4,
+        "hours": 31,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [
+          "2024-07-16 rest_day",
+          "2024-07-21 regular_day_off",
+          "2024-08-13 rest_day",
+          "2024-08-20 rest_day"
+        ],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "check",
+            "message": "2024-07-21: work on the regular day off (例假) is only allowed for emergencies. Ask your labor bureau."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: rest day work, first 2 hours; rest day work, after 2 hours; work on the regular day off (emergencies only)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 9083,
+            "shortfall": 3317
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.029421,
+        "tavilyCredits": 0,
+        "sec": 47.5
+      },
+      "baseline": {
+        "value": 3627,
+        "diff": -4637,
+        "agreement": "off",
+        "expectedTotal": 9393,
+        "shortfall": 3627,
+        "minWageUsed": 183,
+        "costUsd": 0.0033939
+      }
+    },
+    {
+      "id": "tw-court-pcdv77-jan",
+      "title": "Restaurant worker, NT$183/h, January 2024 wages never paid (court table, 26 days)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣新北地方法院 113 年度勞小字第 77 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PCDV%2C113%2C%E5%8B%9E%E5%B0%8F%2C77%2C20241204%2C1",
+      "courtFigure": 50530,
+      "compare": "expectedTotal",
+      "expectedDifferences": [
+        {
+          "kind": "court_claim_limited",
+          "note": "The worker claimed only daily overtime, and the court priced only that. 2024-01-01 is a national holiday (double pay), 1/1 to 1/7 and 1/20 to 1/30 are 7 and 11 days in a row, and several weeks pass 40 hours; none of that is in the court's figure. Expect Fair Shift well above the court."
+        },
+        {
+          "kind": "court_error",
+          "note": "Table rows 1/12 and 1/13 do not match their own hours (about 81 + 447)."
+        }
+      ],
+      "fairShift": {
+        "value": 55571,
+        "diff": 5041,
+        "agreement": "off",
+        "expectedTotal": 55571,
+        "shortfall": 55571,
+        "paidTotal": 0,
+        "shifts": 26,
+        "hours": 257,
+        "confidence": "high",
+        "flags": [
+          "break_unstated",
+          "seven_days"
+        ],
+        "holidayDates": [
+          "2024-01-01"
+        ],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "id": "seven_days",
+            "kind": "check",
+            "message": "You worked 11 days in a row (2024-01-20 to 2024-01-30). LSA Art. 36 requires a regular day off (例假) in every 7 days, except in a few industries the Ministry of Labor has approved. This does not change the amount above; the 1955 hotline can "
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: work on a national holiday; overtime, first 2 extra hours on a workday; overtime starts after 40 hours a week; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "holiday_as_rest_day",
+            "expectedTotal": 55052,
+            "shortfall": 55052
+          },
+          {
+            "id": "break_assumed",
+            "expectedTotal": 49064,
+            "shortfall": 49064
+          }
+        ],
+        "agentRecorded": 8,
+        "codeFallback": 1,
+        "costUsd": 0.030392,
+        "tavilyCredits": 0,
+        "sec": 43.3
+      },
+      "baseline": {
+        "value": 58167.47,
+        "diff": 7637.47,
+        "agreement": "off",
+        "expectedTotal": 58167.47,
+        "shortfall": 58167.47,
+        "minWageUsed": 183,
+        "costUsd": 0.007815899999999999
+      }
+    },
+    {
+      "id": "tw-court-pcdv77-feb",
+      "title": "Restaurant worker, NT$183/h, February 2024 wages never paid (5 days)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣新北地方法院 113 年度勞小字第 77 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PCDV%2C113%2C%E5%8B%9E%E5%B0%8F%2C77%2C20241204%2C1",
+      "courtFigure": 10432,
+      "compare": "expectedTotal",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "The table prices partial overtime hours per row (for example 50 minutes at 183 x 5/3 = 254); small rounding differences possible."
+        }
+      ],
+      "fairShift": {
+        "value": 10431,
+        "diff": -1,
+        "agreement": "within_tolerance",
+        "expectedTotal": 10431,
+        "shortfall": 10431,
+        "paidTotal": 0,
+        "shifts": 5,
+        "hours": 52.17,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 9069,
+            "shortfall": 9069
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.029265,
+        "tavilyCredits": 1,
+        "sec": 45.4
+      },
+      "baseline": {
+        "value": 9887.97,
+        "diff": -544.03,
+        "agreement": "off",
+        "expectedTotal": 9887.97,
+        "shortfall": 9887.97,
+        "minWageUsed": 176,
+        "costUsd": 0.0017433000000000001
+      }
+    },
+    {
+      "id": "tw-court-ksdv12",
+      "title": "Three days of moving help in December 2023, no agreed rate, paid NT$1,250",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣高雄地方法院 113 年度勞小字第 12 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=KSDV%2C113%2C%E5%8B%9E%E5%B0%8F%2C12%2C20240419%2C1",
+      "courtFigure": 334,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "fair_shift_scope",
+          "note": "No hourly rate is stated. Fair Shift is designed to stop and ask for the rate instead of assuming one; the court applied the minimum wage (LSA Art. 21). Expect no amount."
+        }
+      ],
+      "fairShift": {
+        "agreement": "no_amount",
+        "expectedTotal": 0,
+        "needsInput": "hourly_rate",
+        "shifts": 0,
+        "hours": 0,
+        "confidence": "low",
+        "flags": [],
+        "holidayDates": [],
+        "restDayDates": [],
+        "missingRules": [],
+        "problems": [],
+        "alternatives": [],
+        "agentRecorded": 0,
+        "codeFallback": 0,
+        "costUsd": 0.00034,
+        "tavilyCredits": 0,
+        "sec": 9.4
+      },
+      "baseline": {
+        "value": 483.76,
+        "diff": 149.76,
+        "agreement": "off",
+        "expectedTotal": 1733.76,
+        "shortfall": 483.76,
+        "minWageUsed": 168,
+        "costUsd": 0.0018216
+      }
+    },
+    {
+      "id": "tw-court-pcdv14-may",
+      "title": "Daily wage NT$1,800 for 11-hour days, May 2024 with Labor Day (minimum wage check)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣新北地方法院 114 年度勞訴字第 14 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PCDV%2C114%2C%E5%8B%9E%E8%A8%B4%2C14%2C20250725%2C1",
+      "courtFigure": 6153,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 6153,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 35319,
+        "shortfall": 6153,
+        "paidTotal": 29166,
+        "shifts": 15,
+        "hours": 165,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [
+          "2024-05-01"
+        ],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "below_min_wage",
+            "message": "The stated hourly rate is below the minimum wage for some shifts."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: work on a national holiday; overtime, first 2 extra hours on a workday; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "holiday_as_rest_day",
+            "expectedTotal": 34831,
+            "shortfall": 5665
+          },
+          {
+            "id": "break_assumed",
+            "expectedTotal": 30744,
+            "shortfall": 1578
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 2,
+        "costUsd": 0.029738,
+        "tavilyCredits": 1,
+        "sec": 45.3
+      },
+      "baseline": {
+        "value": 8751,
+        "diff": 2598,
+        "agreement": "off",
+        "expectedTotal": 37917,
+        "shortfall": 8751,
+        "minWageUsed": 176,
+        "costUsd": 0.0037668
+      }
+    },
+    {
+      "id": "tw-court-pcdv14-jul",
+      "title": "Daily wage NT$1,800 for 11-hour days, July 2024 (one 9.5-hour day)",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣新北地方法院 114 年度勞訴字第 14 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PCDV%2C114%2C%E5%8B%9E%E8%A8%B4%2C14%2C20250725%2C1",
+      "courtFigure": 6835,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 6835,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 33428,
+        "shortfall": 6835,
+        "paidTotal": 26593,
+        "shifts": 15,
+        "hours": 163.5,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "below_min_wage",
+            "message": "The stated hourly rate is below the minimum wage for some shifts."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 28914,
+            "shortfall": 2321
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.03095,
+        "tavilyCredits": 0,
+        "sec": 43.9
+      },
+      "baseline": {
+        "value": 9215.53,
+        "diff": 2380.53,
+        "agreement": "off",
+        "expectedTotal": 35808.53,
+        "shortfall": 9215.53,
+        "minWageUsed": 183,
+        "costUsd": 0.006486000000000001
+      }
+    },
+    {
+      "id": "tw-court-pcdv14-aug",
+      "title": "Daily wage NT$1,800 for 11-hour days, August 2024",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣新北地方法院 114 年度勞訴字第 14 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PCDV%2C114%2C%E5%8B%9E%E8%A8%B4%2C14%2C20250725%2C1",
+      "courtFigure": 4598,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 4598,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 31598,
+        "shortfall": 4598,
+        "paidTotal": 27000,
+        "shifts": 14,
+        "hours": 154,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "below_min_wage",
+            "message": "The stated hourly rate is below the minimum wage for some shifts."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 27328,
+            "shortfall": 328
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.023743,
+        "tavilyCredits": 2,
+        "sec": 42.1
+      },
+      "baseline": {
+        "value": 4859.98,
+        "diff": 261.98,
+        "agreement": "off",
+        "expectedTotal": 31859.98,
+        "shortfall": 4859.98,
+        "minWageUsed": 163,
+        "costUsd": 0.0040617
+      }
+    },
+    {
+      "id": "tw-court-ptdv21-2023",
+      "title": "Hourly sales promoter at minimum wage, national holidays worked in 2023, paid straight time",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣屏東地方法院 113 年度勞訴字第 21 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PTDV%2C113%2C%E5%8B%9E%E8%A8%B4%2C21%2C20250311%2C2",
+      "courtFigure": 5808,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "fair_shift_scope",
+          "note": "Lunar holidays (Lunar New Year's Eve, Tomb Sweeping Day, Dragon Boat, Mid-Autumn) are built in only for 2026 and 2027; for other years the page asks the user to mark them with 國定假日. Expect Fair Shift to miss 16 of the 33 hours unless it reads the holiday names."
+        }
+      ],
+      "fairShift": {
+        "value": 5808,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 11616,
+        "shortfall": 5808,
+        "paidTotal": 5808,
+        "shifts": 7,
+        "hours": 33,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [
+          "2023-01-01",
+          "2023-01-21",
+          "2023-02-28",
+          "2023-04-05",
+          "2023-05-01",
+          "2023-06-22",
+          "2023-09-29"
+        ],
+        "restDayDates": [],
+        "minWageUsed": 176,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: work on a national holiday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 11264,
+            "shortfall": 5456
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 4,
+        "costUsd": 0.021246,
+        "tavilyCredits": 0,
+        "sec": 52.5
+      },
+      "baseline": {
+        "value": 5808,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 11616,
+        "shortfall": 5808,
+        "minWageUsed": 176,
+        "costUsd": 0.0038028000000000003
+      }
+    },
+    {
+      "id": "tw-court-ptdv21-2022",
+      "title": "Hourly sales promoter at minimum wage, national holidays worked in 2022, paid straight time",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣屏東地方法院 113 年度勞訴字第 21 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=PTDV%2C113%2C%E5%8B%9E%E8%A8%B4%2C21%2C20250311%2C2",
+      "courtFigure": 6720,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_error",
+          "note": "The court's rows sum to 39 hours, not 40 (168 less)."
+        },
+        {
+          "kind": "fair_shift_scope",
+          "note": "Lunar holidays before 2026 are not built in (19 of the 39 hours)."
+        }
+      ],
+      "fairShift": {
+        "value": 6552,
+        "diff": -168,
+        "agreement": "within_5pct",
+        "expectedTotal": 13104,
+        "shortfall": 6552,
+        "paidTotal": 6552,
+        "shifts": 8,
+        "hours": 39,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [
+          "2022-01-31",
+          "2022-02-28",
+          "2022-04-04",
+          "2022-04-05",
+          "2022-05-01",
+          "2022-06-03",
+          "2022-09-10",
+          "2022-10-10"
+        ],
+        "restDayDates": [],
+        "minWageUsed": 168,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: work on a national holiday."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 12768,
+            "shortfall": 6216
+          }
+        ],
+        "agentRecorded": 7,
+        "codeFallback": 5,
+        "costUsd": 0.030688,
+        "tavilyCredits": 0,
+        "sec": 42.8
+      },
+      "baseline": {
+        "value": 4019.43,
+        "diff": -2700.57,
+        "agreement": "off",
+        "expectedTotal": 10571.43,
+        "shortfall": 4019.43,
+        "minWageUsed": 142.86,
+        "costUsd": 0.0056295
+      }
+    },
+    {
+      "id": "tw-court-tcdv24-2024",
+      "title": "Hourly shop worker sent as a mystery shopper after her shift, 2024-05-22",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣臺中地方法院 114 年度勞小字第 24 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=TCDV%2C114%2C%E5%8B%9E%E5%B0%8F%2C24%2C20250801%2C1",
+      "courtFigure": 641,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "183 x 5/3 x 0.5 = 152.5; rounding of the half dollar may differ by 1."
+        }
+      ],
+      "fairShift": {
+        "value": 641,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 2105,
+        "shortfall": 641,
+        "paidTotal": 1464,
+        "shifts": 2,
+        "hours": 10.5,
+        "confidence": "high",
+        "flags": [
+          "hours_mismatch"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 183,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_hours",
+            "message": "The payslip pays 8 hours, but the schedule shows 10.5 hours."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday; overtime, next 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [],
+        "agentRecorded": 7,
+        "codeFallback": 1,
+        "costUsd": 0.037276,
+        "tavilyCredits": 1,
+        "sec": 44.3
+      },
+      "baseline": {
+        "value": 639,
+        "diff": -2,
+        "agreement": "within_5pct",
+        "expectedTotal": 2103,
+        "shortfall": 639,
+        "minWageUsed": 183,
+        "costUsd": 0.0024486
+      }
+    },
+    {
+      "id": "tw-court-tcdv24-2023",
+      "title": "Hourly shop worker, one hour of overtime on 2023-09-28",
+      "jurisdiction": "TW",
+      "currency": "TWD",
+      "caseNo": "臺灣臺中地方法院 114 年度勞小字第 24 號民事判決",
+      "url": "https://judgment.judicial.gov.tw/FJUD/data.aspx?ty=JD&id=TCDV%2C114%2C%E5%8B%9E%E5%B0%8F%2C24%2C20250801%2C1",
+      "courtFigure": 236,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_rounding",
+          "note": "1.34 instead of 4/3: 236 vs 234.67."
+        }
+      ],
+      "fairShift": {
+        "value": 235,
+        "diff": -1,
+        "agreement": "within_tolerance",
+        "expectedTotal": 1643,
+        "shortfall": 235,
+        "paidTotal": 1408,
+        "shifts": 1,
+        "hours": 9,
+        "confidence": "high",
+        "flags": [],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 176,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_hours",
+            "message": "The payslip pays 8 hours, but the schedule shows 9 hours."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: overtime, first 2 extra hours on a workday."
+          }
+        ],
+        "alternatives": [],
+        "agentRecorded": 8,
+        "codeFallback": 2,
+        "costUsd": 0.027085,
+        "tavilyCredits": 2,
+        "sec": 45.9
+      },
+      "baseline": {
+        "value": 6,
+        "diff": -230,
+        "agreement": "off",
+        "expectedTotal": 1414,
+        "shortfall": 6,
+        "minWageUsed": 151.5,
+        "costUsd": 0.0032424
+      }
+    },
+    {
+      "id": "ny-court-24-4349-feb2024",
+      "title": "Brooklyn deli cook, $800 flat a week, 57-hour week in February 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:24-cv-04349 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_24-cv-04349/pdf/USCOURTS-nyed-1_24-cv-04349-0.pdf",
+      "courtFigure": 510,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 510,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 1310,
+        "shortfall": 510,
+        "paidTotal": 800,
+        "shifts": 6,
+        "hours": 57,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1130,
+            "shortfall": 330
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.008885,
+        "tavilyCredits": 0,
+        "sec": 8.7
+      },
+      "baseline": {
+        "value": 182.5,
+        "diff": -327.5,
+        "agreement": "off",
+        "expectedTotal": 982.5,
+        "shortfall": 182.5,
+        "minWageUsed": 15,
+        "costUsd": 0.0013299000000000002
+      }
+    },
+    {
+      "id": "ny-court-24-4349-apr2024",
+      "title": "Brooklyn deli cook, $800 flat a week, 69-hour week in April 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:24-cv-04349 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_24-cv-04349/pdf/USCOURTS-nyed-1_24-cv-04349-0.pdf",
+      "courtFigure": 870,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_claim_limited",
+          "note": "Days over 10 hours in a hospitality job get one extra hour at the minimum wage (12 NYCRR 146-1.6); the worker abandoned that claim. Expect Fair Shift about 6 x $16 = $96 above the court."
+        }
+      ],
+      "fairShift": {
+        "value": 966,
+        "diff": 96,
+        "agreement": "off",
+        "expectedTotal": 1766,
+        "shortfall": 966,
+        "paidTotal": 800,
+        "shifts": 6,
+        "hours": 69,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (restaurants and hotels)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1586,
+            "shortfall": 786
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.009772,
+        "tavilyCredits": 0,
+        "sec": 9.9
+      },
+      "baseline": {
+        "value": 542.5,
+        "diff": -327.5,
+        "agreement": "off",
+        "expectedTotal": 1342.5,
+        "shortfall": 542.5,
+        "minWageUsed": 15,
+        "costUsd": 0.001023
+      }
+    },
+    {
+      "id": "ny-court-25-1177-nov2024",
+      "title": "Brooklyn meat market worker, $16 an hour straight time, 86-hour week in November 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:25-cv-01177 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_25-cv-01177/pdf/USCOURTS-nyed-1_25-cv-01177-0.pdf",
+      "courtFigure": 464,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 464,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 1840,
+        "shortfall": 464,
+        "paidTotal": 1376,
+        "shifts": 6,
+        "hours": 86,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (other industries)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1696,
+            "shortfall": 320
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.009681,
+        "tavilyCredits": 0,
+        "sec": 11.3
+      },
+      "baseline": {
+        "value": 0,
+        "diff": -464,
+        "agreement": "off",
+        "expectedTotal": 1290,
+        "shortfall": 0,
+        "minWageUsed": 15,
+        "costUsd": 0.001098
+      }
+    },
+    {
+      "id": "ny-court-25-1177-jan2025",
+      "title": "Brooklyn meat market worker, $16 an hour straight time, 86-hour week in January 2025",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:25-cv-01177 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_25-cv-01177/pdf/USCOURTS-nyed-1_25-cv-01177-0.pdf",
+      "courtFigure": 521.5,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 521.5,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 1897.5,
+        "shortfall": 521.5,
+        "paidTotal": 1376,
+        "shifts": 6,
+        "hours": 86,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16.5,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "below_min_wage",
+            "message": "The stated hourly rate is below the minimum wage for some shifts."
+          },
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (other industries)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1749,
+            "shortfall": 373
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.010004,
+        "tavilyCredits": 0,
+        "sec": 8.7
+      },
+      "baseline": {
+        "value": 368,
+        "diff": -153.5,
+        "agreement": "off",
+        "expectedTotal": 1744,
+        "shortfall": 368,
+        "minWageUsed": 16,
+        "costUsd": 0.0016875
+      }
+    },
+    {
+      "id": "ny-court-25-3219-2024",
+      "title": "Brooklyn deli worker, $17 an hour straight time, 66-hour week in 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:25-cv-03219 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_25-cv-03219/pdf/USCOURTS-nyed-1_25-cv-03219-0.pdf",
+      "courtFigure": 221,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 233,
+        "diff": 12,
+        "agreement": "off",
+        "expectedTotal": 1355,
+        "shortfall": 233,
+        "paidTotal": 1122,
+        "shifts": 6,
+        "hours": 66,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (other industries)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1205,
+            "shortfall": 83
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.009642,
+        "tavilyCredits": 0,
+        "sec": 10.2
+      },
+      "baseline": {
+        "value": 221,
+        "diff": 0,
+        "agreement": "exact",
+        "expectedTotal": 1343,
+        "shortfall": 221,
+        "minWageUsed": 15,
+        "costUsd": 0.0022845000000000005
+      }
+    },
+    {
+      "id": "ny-court-25-3219-2025",
+      "title": "Brooklyn deli worker, $17 an hour straight time, 66-hour week in 2025",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:25-cv-03219 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_25-cv-03219/pdf/USCOURTS-nyed-1_25-cv-03219-0.pdf",
+      "courtFigure": 221,
+      "compare": "shortfall",
+      "expectedDifferences": [],
+      "fairShift": {
+        "value": 252.5,
+        "diff": 31.5,
+        "agreement": "off",
+        "expectedTotal": 1374.5,
+        "shortfall": 252.5,
+        "paidTotal": 1122,
+        "shifts": 6,
+        "hours": 66,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16.5,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (other industries)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1223,
+            "shortfall": 101
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.011255,
+        "tavilyCredits": 0,
+        "sec": 8.2
+      },
+      "baseline": {
+        "value": 266,
+        "diff": 45,
+        "agreement": "off",
+        "expectedTotal": 1388,
+        "shortfall": 266,
+        "minWageUsed": 15,
+        "costUsd": 0.0033753000000000003
+      }
+    },
+    {
+      "id": "ny-court-25-2674-2024",
+      "title": "New York City restaurant cook, $1,000 flat a week, 66-hour week in late 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:25-cv-02674 (memorandum and order)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_25-cv-02674/pdf/USCOURTS-nyed-1_25-cv-02674-0.pdf",
+      "courtFigure": 975,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_claim_limited",
+          "note": "Spread-of-hours claim abandoned. With 6 days over 10 hours (my assumption), expect Fair Shift about $96 above the court."
+        },
+        {
+          "kind": "facts_reconstructed",
+          "note": "The number of days over 10 hours depends on my 6 x 11 hour split."
+        }
+      ],
+      "fairShift": {
+        "value": 1071,
+        "diff": 96,
+        "agreement": "off",
+        "expectedTotal": 2071,
+        "shortfall": 1071,
+        "paidTotal": 1000,
+        "shifts": 6,
+        "hours": 66,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (restaurants and hotels)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1846,
+            "shortfall": 846
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.009614,
+        "tavilyCredits": 0,
+        "sec": 9
+      },
+      "baseline": {
+        "value": 275,
+        "diff": -700,
+        "agreement": "off",
+        "expectedTotal": 1275,
+        "shortfall": 275,
+        "minWageUsed": 15,
+        "costUsd": 0.0020976000000000002
+      }
+    },
+    {
+      "id": "ny-court-24-8391-2024",
+      "title": "New York City deli and grocery cook, $650 flat a week, 63-hour week in 2024",
+      "jurisdiction": "US-NY",
+      "currency": "USD",
+      "caseNo": "E.D.N.Y. No. 1:24-cv-08391 (report and recommendation)",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-nyed-1_24-cv-08391/pdf/USCOURTS-nyed-1_24-cv-08391-0.pdf",
+      "courtFigure": 282.88,
+      "compare": "shortfall",
+      "expectedDifferences": [
+        {
+          "kind": "court_method",
+          "note": "Having set the regular rate at weekly pay / 40, the court paid only the half-time difference on the 23 overtime hours. Under the 40-hour presumption the overtime hours were unpaid, so 1.5 x $16.25 x 23 = $560.63 would be owed. Expect Fair Shift about $374 above the court."
+        }
+      ],
+      "fairShift": {
+        "value": 656.63,
+        "diff": 373.75,
+        "agreement": "off",
+        "expectedTotal": 1306.63,
+        "shortfall": 656.63,
+        "paidTotal": 650,
+        "shifts": 6,
+        "hours": 63,
+        "confidence": "high",
+        "flags": [
+          "break_unstated"
+        ],
+        "holidayDates": [],
+        "restDayDates": [],
+        "minWageUsed": 16,
+        "missingRules": [],
+        "problems": [
+          {
+            "kind": "unpaid_premium",
+            "message": "Extra pay the rules require: new york overtime after 40 hours a week; spread of hours over 10 (restaurants and hotels)."
+          }
+        ],
+        "alternatives": [
+          {
+            "id": "break_assumed",
+            "expectedTotal": 1160.38,
+            "shortfall": 510.38
+          }
+        ],
+        "agentRecorded": 3,
+        "codeFallback": 0,
+        "costUsd": 0.00964,
+        "tavilyCredits": 0,
+        "sec": 7.6
+      },
+      "baseline": {
+        "value": 557.5,
+        "diff": 274.62,
+        "agreement": "off",
+        "expectedTotal": 1207.5,
+        "shortfall": 557.5,
+        "minWageUsed": 15,
+        "costUsd": 0.0016623
+      }
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-q-saturday-holiday",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000544,
+        "sec": 8.4
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": null,
+            "end": null,
+            "hours": 6.5
+          },
+          {
+            "md": null,
+            "start": null,
+            "end": null,
+            "hours": 3.5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0014913
+      }
+    },
+    {
+      "id": "post-q-labor-day",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000133,
+        "sec": 1.9
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "05-01",
+            "start": null,
+            "end": null,
+            "hours": null
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.000426
+      }
+    },
+    {
+      "id": "post-q-seventh-day",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000105,
+        "sec": 1.6
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": null,
+            "end": null,
+            "hours": 1.5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0004452
+      }
+    },
+    {
+      "id": "post-q-training-rate",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000131,
+        "sec": 2.3
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.0002919
+      }
+    },
+    {
+      "id": "post-q-tutor-holiday",
+      "kind": "question",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "04-04",
+            "hours": 9
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "loud",
+        "costUsd": 0.000239,
+        "sec": 3.9
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "04-04",
+            "start": null,
+            "end": null,
+            "hours": 9
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0014202000000000002
+      }
+    },
+    {
+      "id": "post-q-three-holidays",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000166,
+        "sec": 2.9
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.00023939999999999996
+      }
+    },
+    {
+      "id": "post-q-store-pt-dates",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000314,
+        "sec": 5.7
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "04-02",
+            "start": null,
+            "end": null,
+            "hours": null
+          },
+          {
+            "md": "04-05",
+            "start": null,
+            "end": null,
+            "hours": null
+          },
+          {
+            "md": "04-30",
+            "start": null,
+            "end": null,
+            "hours": null
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0006687
+      }
+    },
+    {
+      "id": "post-q-mid-autumn-shift",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.00013,
+        "sec": 1.9
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.0003447
+      }
+    },
+    {
+      "id": "post-q-new-year-day",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000109,
+        "sec": 1.6
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.0002247
+      }
+    },
+    {
+      "id": "post-q-late-rounding",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 7,
+        "outcome": "correct",
+        "costUsd": 0.000288,
+        "sec": 4.2
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "17:05",
+            "end": "21:05",
+            "hours": 4
+          },
+          {
+            "md": null,
+            "start": "17:10",
+            "end": "21:00",
+            "hours": 3.8333333333333335
+          },
+          {
+            "md": null,
+            "start": "17:00",
+            "end": "21:00",
+            "hours": 4
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0013488
+      }
+    },
+    {
+      "id": "post-q-split-shift-cut",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 3,
+        "outcome": "correct",
+        "costUsd": 0.000275,
+        "sec": 4.1
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-14",
+            "start": "09:00",
+            "end": "16:00",
+            "hours": 7
+          },
+          {
+            "md": "10-14",
+            "start": "18:00",
+            "end": "22:00",
+            "hours": 4
+          },
+          {
+            "md": "10-14",
+            "start": "09:00",
+            "end": "12:00",
+            "hours": 3
+          }
+        ],
+        "outcome": "wrong",
+        "costUsd": 0.0009633
+      }
+    },
+    {
+      "id": "post-q-drink-shop-hours",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.000276,
+        "sec": 4.9
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "10:00",
+            "end": "18:00",
+            "hours": 8
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.00040889999999999996
+      }
+    },
+    {
+      "id": "post-q-rest-day-break",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.000105,
+        "sec": 1.5
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "08:30",
+            "end": "13:00",
+            "hours": 4.5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0007578000000000001
+      }
+    },
+    {
+      "id": "post-q-one-hour-days",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000176,
+        "sec": 3.6
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.0004341
+      }
+    },
+    {
+      "id": "post-q-saturday-math",
+      "kind": "question",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "correct",
+        "costUsd": 0.000145,
+        "sec": 3.4
+      },
+      "baseline": {
+        "shifts": [],
+        "outcome": "correct",
+        "costUsd": 0.00027840000000000005
+      }
+    },
+    {
+      "id": "post-ad-expo-two-days",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "11-06",
+            "start": "10:00",
+            "end": "18:00"
+          },
+          {
+            "md": "11-09",
+            "start": "10:00",
+            "end": "18:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "11-06",
+            "start": "10:00",
+            "end": "18:00",
+            "hours": 7.5
+          },
+          {
+            "md": "11-09",
+            "start": "10:00",
+            "end": "18:00",
+            "hours": 7.5
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.011601,
+        "sec": 20.8
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "11-06",
+            "start": "10:00",
+            "end": "18:00",
+            "hours": 8
+          },
+          {
+            "md": "11-09",
+            "start": "10:00",
+            "end": "18:00",
+            "hours": 8
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0004767
+      }
+    },
+    {
+      "id": "post-ad-weekday-range",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-14",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-15",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-16",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-19",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-20",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-21",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-22",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-23",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-26",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-27",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-28",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-29",
+            "start": "08:30",
+            "end": "18:00"
+          },
+          {
+            "md": "10-30",
+            "start": "08:30",
+            "end": "18:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "loud",
+        "costUsd": 0.001002,
+        "sec": 15.8
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "08:30",
+            "end": "18:00",
+            "hours": 9
+          }
+        ],
+        "outcome": "wrong",
+        "costUsd": 0.0011052
+      }
+    },
+    {
+      "id": "post-ad-one-day-lunch",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-17",
+            "start": "08:00",
+            "end": "17:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "10-17",
+            "start": "08:00",
+            "end": "17:00",
+            "hours": 8
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 2,
+        "outcome": "correct",
+        "costUsd": 0.011006,
+        "sec": 20.1
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "08:00",
+            "end": "17:00",
+            "hours": 8
+          }
+        ],
+        "outcome": "wrong",
+        "costUsd": 0.0008142000000000001
+      }
+    },
+    {
+      "id": "post-ad-two-day-range",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-17",
+            "start": "09:00",
+            "end": "18:00"
+          },
+          {
+            "md": "10-18",
+            "start": "09:00",
+            "end": "18:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "10-17",
+            "start": "09:00",
+            "end": "18:00",
+            "hours": 8
+          },
+          {
+            "md": "10-18",
+            "start": "09:00",
+            "end": "18:00",
+            "hours": 8
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.011534,
+        "sec": 19
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-17",
+            "start": "09:00",
+            "end": "18:00",
+            "hours": 8
+          },
+          {
+            "md": "10-18",
+            "start": "09:00",
+            "end": "18:00",
+            "hours": 8
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0007734
+      }
+    },
+    {
+      "id": "post-ad-split-day",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-16",
+            "start": "08:30",
+            "end": "11:00"
+          },
+          {
+            "md": "10-16",
+            "start": "12:40",
+            "end": "16:10"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "10-16",
+            "start": "08:30",
+            "end": "11:00",
+            "hours": 2
+          },
+          {
+            "md": "10-16",
+            "start": "12:40",
+            "end": "16:10",
+            "hours": 3
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.011255,
+        "sec": 20.3
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-16",
+            "start": "08:30",
+            "end": "11:00",
+            "hours": 2.5
+          },
+          {
+            "md": "10-16",
+            "start": "12:40",
+            "end": "16:10",
+            "hours": 3.5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0010434
+      }
+    },
+    {
+      "id": "post-ad-afternoon-words",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-13",
+            "start": "13:00",
+            "end": "18:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "10-13",
+            "start": "13:00",
+            "end": "18:00",
+            "hours": 4.5
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.010271,
+        "sec": 14.5
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-13",
+            "start": "13:00",
+            "end": "18:00",
+            "hours": 4.5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0005696999999999999
+      }
+    },
+    {
+      "id": "post-ad-fullwidth-colon",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-11",
+            "start": "14:00",
+            "end": "16:00"
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [
+          {
+            "md": "10-11",
+            "start": "14:00",
+            "end": "16:00",
+            "hours": 2
+          }
+        ],
+        "parseError": false,
+        "confidence": "low",
+        "unread": 1,
+        "outcome": "correct",
+        "costUsd": 0.010716,
+        "sec": 16.9
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-11",
+            "start": "14:00",
+            "end": "16:00",
+            "hours": 2
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.000363
+      }
+    },
+    {
+      "id": "post-ad-recurring-week",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "ask"
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 2,
+        "outcome": "correct",
+        "costUsd": 0.000402,
+        "sec": 5.5
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": null,
+            "start": "16:00",
+            "end": "21:00",
+            "hours": 5
+          },
+          {
+            "md": null,
+            "start": "16:00",
+            "end": "21:00",
+            "hours": 5
+          },
+          {
+            "md": null,
+            "start": "16:00",
+            "end": "21:00",
+            "hours": 5
+          },
+          {
+            "md": null,
+            "start": "16:00",
+            "end": "21:00",
+            "hours": 5
+          },
+          {
+            "md": null,
+            "start": "16:00",
+            "end": "21:00",
+            "hours": 5
+          },
+          {
+            "md": null,
+            "start": "13:00",
+            "end": "20:00",
+            "hours": 7
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0014301000000000001
+      }
+    },
+    {
+      "id": "post-ad-duration-only",
+      "kind": "job_ad",
+      "expected": {
+        "outcome": "shifts",
+        "shifts": [
+          {
+            "md": "10-15",
+            "hours": 5
+          }
+        ]
+      },
+      "fairShift": {
+        "shifts": [],
+        "parseError": true,
+        "confidence": "low",
+        "unread": 0,
+        "outcome": "loud",
+        "costUsd": 0.000214,
+        "sec": 2.9
+      },
+      "baseline": {
+        "shifts": [
+          {
+            "md": "10-15",
+            "start": null,
+            "end": null,
+            "hours": 5
+          }
+        ],
+        "outcome": "correct",
+        "costUsd": 0.0005403
+      }
+    }
+  ]
+}

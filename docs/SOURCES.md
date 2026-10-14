@@ -31,7 +31,8 @@ Read on 2026-10-13 unless marked. Every seed was retrieved with Tavily extract a
 
 - LSA Art. 24, 39, 40, MOL law database (agent seeds, read 2026-10-14): https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014930&flno=24 (flno=39, flno=40)
 - LSA Enforcement Rules Art. 20-1, MOL law database (agent seed, read 2026-10-14): https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014931&flno=20-1
-- Taiwan MOL, rate history: https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/
+- Taiwan MOL, rate history: https://www.mol.gov.tw/1607/28162/28166/28180/70460/76761/ (the 2025 and 2026 rates as text)
+- Taiwan MOL, 基本工資之制訂與調整經過 (PDF, every basic wage adjustment up to the 2024 rate; added to the task only for shift dates before 2025): https://www.mol.gov.tw/media/idxna0og/%E5%9F%BA%E6%9C%AC%E5%B7%A5%E8%B3%87%E4%B9%8B%E5%88%B6%E8%A8%82%E8%88%87%E8%AA%BF%E6%95%B4%E7%B6%93%E9%81%8E.pdf?mediaDL=true
 - Taiwan MOL, 2027 decision (2026-09-24): https://www.mol.gov.tw/1607/1632/1633/99195/post
 - Executive Yuan news release, 2026-10-01, cabinet heard the minimum wage report (found by the app's Tavily search; read 2026-10-14): https://www.ey.gov.tw/Page/9277F759E41CCD91/59848ab4-676b-41b7-898e-9f5207325f0a
 - MOL Q&A on national holidays (holiday hours beyond 8 are overtime under Art. 24), read 2026-10-14: https://www.mol.gov.tw/1607/28690/2282/2284/2292/7239
@@ -45,6 +46,7 @@ Read on 2026-10-13 unless marked. Every seed was retrieved with Tavily extract a
 - MOL, 2025 inspection of businesses hiring student and part-time workers (2026-07-31, read 2026-10-14): https://www.mol.gov.tw/1607/1632/1633/96453/
 - 紀念日及節日實施條例: https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0020095 (the app quotes it from the DGPA calendar page of the shift year)
 - DGPA government office calendar 2026 (115年): https://www.dgpa.gov.tw/information?uid=30&pid=12573 ; 2027 (116年): https://www.dgpa.gov.tw/information?uid=30&pid=12982 (read 2026-10-14)
+- NYS DOL, History of the Minimum Wage in New York State (rates by region from 2016; added only for dates before 2026): https://dol.ny.gov/history-minimum-wage-new-york-state
 - NYS DOL minimum wage: https://dol.ny.gov/minimum-wage-0 ; fact sheet P700 (12/25): https://dol.ny.gov/system/files/documents/2025/12/p700_12-25.pdf
 - NYS Hospitality Industry Wage Order, 12 NYCRR 146, CR 146 (09/24): https://forms.labor.ny.gov/WP/CR146.pdf ; Miscellaneous Industries Wage Order, 12 NYCRR 142: https://forms.labor.ny.gov/WP/CR142.pdf (both linked from https://dol.ny.gov/wage-orders, read 2026-10-14)
 - NYS DOL, unpaid wages and the LS223 complaint form (claims for wages from the last three years; help line 888-525-2267), read 2026-10-14: https://dol.ny.gov/unpaidwithheld-wages-and-wage-supplements
@@ -52,3 +54,7 @@ Read on 2026-10-13 unless marked. Every seed was retrieved with Tavily extract a
 ## Day-one feasibility test
 
 `npm run feasibility` automates the checks from the topic review: Tavily finds the 2027 hourly rate on `mol.gov.tw`, extracts `每小時最低工資為196元` from the rate history page, finds `$17.00` for New York City on `dol.ny.gov`, and Nemotron Nano parses at least 4 of 5 synthetic Chinese schedules exactly. Tavily retrieval of every seed was checked on 2026-10-14 (`eval/results/sources-*.md`): law.moj.gov.tw returns only the page frame, so the laws come from laws.mol.gov.tw and the holiday act from the DGPA calendar pages. laws.mol.gov.tw sometimes times out on basic extract, so a failed extract is retried once with advanced extract. The DGPA calendar dates are in xlsx/pdf attachments that Tavily could not fetch; they stay a table in code.
+
+## Holidays added in 2025
+
+Teachers' Day (9/28), Retrocession Day (10/25) and Constitution Day (12/25) became national days off with the amendment of 紀念日及節日實施條例 passed 2025-05-09 and promulgated 2025-05-28 (in force 2025-05-30). The agent's holiday records come from the act as it stands now, so code treats those dates as normal days before 2025-05-30 (`lib/wage/holidays-tw.ts`).
