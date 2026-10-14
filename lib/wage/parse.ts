@@ -39,14 +39,19 @@ export function shiftHours(start: string, end: string, breakMinutes: number): nu
   return Math.max(0, Math.round(((mins - breakMinutes) / 60) * 100) / 100);
 }
 
-const TIME = String.raw`(上午|下午|晚上|早上|中午|傍晚|清晨|凌晨|半夜)?\s*(\d{1,2})(?:[:：](\d{2})|點(半|\d{1,2})?分?)?\s*(am|pm)?`;
+// 18:00, 18點, 18點半, 18時 (a schedule written 18時-22時), 6pm
+const TIME = String.raw`(上午|下午|晚上|早上|中午|傍晚|清晨|凌晨|半夜)?\s*(\d{1,2})(?:[:：](\d{2})|[點時](半|\d{1,2})?分?)?\s*(am|pm)?`;
 
 function minutePart(colon?: string, cn?: string): number {
   if (colon) return Number(colon);
   if (cn === "半") return 30;
   return cn ? Number(cn) : 0;
 }
-const RANGE = new RegExp(`${TIME}\\s*(?:-|~|～|–|—|to|至|到)\\s*${TIME}`, "i");
+const RANGE_SRC = `${TIME}\\s*(?:-|~|～|–|—|to|至|到)\\s*${TIME}`;
+const RANGE_ALL = () => new RegExp(RANGE_SRC, "gi");
+
+/** A line that names a time of day (18:00, 6點, 18時, 6pm, 晚上6), whether or not it has a full range. */
+const TIME_HINT = /\d{1,2}\s*(?:[:：]\d{2}|[點時](?!數)|am\b|pm\b)|(?:上午|下午|晚上|早上|中午|傍晚|清晨|凌晨|半夜)\s*\d/i;
 
 function findDate(line: string, year: number): string | null {
   let m = line.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
@@ -61,13 +66,31 @@ function findDate(line: string, year: number): string | null {
   return null;
 }
 
-function findBreak(line: string): number {
-  // 休息60分, 午休 30 分鐘, 休1小時, break 30 min, lunch 1h
-  let m = line.match(/(?:休息|午休|休|break|lunch)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(分鐘|分|min|mins|minutes|小時|鐘頭|h|hr|hrs|hours?)/i);
-  if (m) return /小時|鐘頭|h/i.test(m[2]) && !/min/i.test(m[2]) ? Math.round(Number(m[1]) * 60) : Math.round(Number(m[1]));
-  m = line.match(/(\d+(?:\.\d+)?)\s*(分鐘|min|mins|minutes|小時|h|hr|hrs|hours?)\s*(?:的)?\s*(?:休息|break|lunch)/i);
-  if (m) return /小時|h/i.test(m[2]) && !/min/i.test(m[2]) ? Math.round(Number(m[1]) * 60) : Math.round(Number(m[1]));
-  return 0;
+/** Break words written as words: 半小時 -> 30分鐘, 一個小時 -> 1小時, 1個半小時 -> 90分鐘. */
+function normaliseBreakWords(line: string): string {
+  const zhNum: Record<string, number> = { 一: 1, 二: 2, 兩: 2, 三: 3 };
+  return line
+    .replace(/(?:一|1)\s*個?\s*(?:小時|鐘頭)\s*半|(?:一|1)\s*個?\s*半\s*(?:小時|鐘頭)/g, "90分鐘")
+    .replace(/半\s*個?\s*(?:小時|鐘頭)|half an hour|half hour/gi, "30分鐘")
+    .replace(/([一二兩三])\s*個?\s*(小時|鐘頭)/g, (_, n: string, u: string) => `${zhNum[n]}${u}`)
+    .replace(/(\d+(?:\.\d+)?)\s*個\s*(小時|鐘頭)/g, "$1$2");
+}
+
+const BREAK_UNIT = String.raw`(分鐘|分|minutes?|mins?|m(?![a-z])|小時|鐘頭|hours?|hrs?|h)`;
+const NO_BREAK = /不休息|沒有?休息|無休息|中間不休|no break|without (?:a )?break|no lunch/i;
+
+/** Break written in a line, and whether the line says anything definite about a break. */
+export function findBreakInfo(rawLine: string): { minutes: number; stated: boolean } {
+  const line = normaliseBreakWords(rawLine.normalize("NFKC"));
+  const toMin = (n: string, unit: string) => (/小時|鐘頭|^h/i.test(unit) && !/min/i.test(unit) ? Math.round(Number(n) * 60) : Math.round(Number(n)));
+  // 休息60分, 中間休息30分鐘, 午休 30 分鐘, 休1小時, break 30 min, lunch 1h, (break: 30m)
+  let m = line.match(new RegExp(String.raw`(?:休息|午休|休|break|lunch|meal)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*` + BREAK_UNIT, "i"));
+  if (m) return { minutes: toMin(m[1], m[2]), stated: true };
+  // 30 min break, 30-minute break, 1 小時休息, 1hr lunch
+  m = line.match(new RegExp(String.raw`(\d+(?:\.\d+)?)\s*-?\s*` + BREAK_UNIT + String.raw`\s*(?:的)?\s*(?:休息|break|lunch|meal)`, "i"));
+  if (m) return { minutes: toMin(m[1], m[2]), stated: true };
+  if (NO_BREAK.test(line)) return { minutes: 0, stated: true };
+  return { minutes: 0, stated: false };
 }
 
 function marker(line: string): Shift["dayType"] | null {
@@ -99,6 +122,8 @@ export interface RawShift {
   breakMinutes: number;
   marked: Shift["dayType"] | null;
   raw: string;
+  /** The line says how long the break is, or that there is none. */
+  breakStated?: boolean;
 }
 
 export interface ScheduleParse {
@@ -106,7 +131,7 @@ export interface ScheduleParse {
   /** Date range found in the schedule text itself (header line), if any. */
   range?: { start: string; end: string };
   /** Lines that look like a shift (they have a time range) but could not be read, with the reason. */
-  unread: { line: string; reason: "no_date" | "weekday_ambiguous" }[];
+  unread: { line: string; reason: "no_date" | "weekday_ambiguous" | "no_time_range" }[];
 }
 
 function datesInPeriod(period?: { start?: string; end?: string }): string[] {
@@ -160,35 +185,60 @@ export function parseScheduleDetailed(text: string, year: number, period?: { sta
   const periodDates = datesInPeriod(own ?? period);
   for (const original of text.split(/\r?\n/)) {
     const line = original.normalize("NFKC");
+    const short = original.trim().slice(0, 120);
     let date = findDate(line, year);
     if (date && !isValidDate(date)) date = null;
-    const r = line.replace(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/, " ").replace(/(?:^|[^\d:])\d{1,2}\/\d{1,2}(?![\d/])/, " ").match(RANGE);
-    if (!r) continue;
+    // Remove dates so "10/5~10/11" is not read as a time range, then read every
+    // time range on the line: "08-12 17-21" is a split shift, two shifts.
+    const stripped = line
+      .replace(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/g, " ")
+      .replace(/(^|[^\d:])\d{1,2}\/\d{1,2}(?![\d/])/g, "$1 ")
+      .replace(/\d{1,2}\s*月\s*\d{1,2}\s*[日號号]?/g, " ");
+    const ranges = [...stripped.matchAll(RANGE_ALL())];
+    if (ranges.length === 0) {
+      // A line that names a time but has no readable start and end ("6點半到打烊",
+      // "18:00 開始") is listed, never dropped silently. A header with only a
+      // date range is not a shift.
+      if (TIME_HINT.test(stripped) && !scheduleDateRange(line, year)) unread.push({ line: short, reason: "no_time_range" });
+      continue;
+    }
     if (!date) {
       const wd = findWeekday(line);
       const hits = wd === null ? [] : periodDates.filter((d) => new Date(d + "T00:00:00Z").getUTCDay() === wd);
       if (hits.length === 1) date = hits[0];
       else {
-        unread.push({ line: original.trim().slice(0, 120), reason: wd === null ? "no_date" : "weekday_ambiguous" });
+        unread.push({ line: short, reason: wd === null ? "no_date" : "weekday_ambiguous" });
         continue;
       }
     }
-    const startAmpm = r[1] || r[5];
-    let endAmpm = r[6] || r[10];
-    // "下午5點-10點" -> the end inherits the afternoon marker
-    if (!endAmpm && r[1] && PM_WORDS.includes(r[1]) && Number(r[7]) < 12) endAmpm = r[1];
-    // "中午12點到5點" -> 17:00
-    if (!endAmpm && r[1] === "中午" && Number(r[7]) < 11) endAmpm = "下午";
-    let startMin = toMinutes(Number(r[2]), minutePart(r[3], r[4]), startAmpm);
-    const endMin = toMinutes(Number(r[7]), minutePart(r[8], r[9]), endAmpm);
-    // "5-10pm" -> the start inherits pm when that keeps the shift in order
-    if (!startAmpm && endAmpm && /pm|下午|晚上/i.test(endAmpm) && Number(r[2]) < 12 && startMin + 720 < endMin) startMin += 720;
-    if (startMin > 24 * 60 || endMin > 24 * 60) {
-      unread.push({ line: original.trim().slice(0, 120), reason: "no_date" });
-      continue;
+    const brk = findBreakInfo(line);
+    const read: RawShift[] = [];
+    let bad = false;
+    for (const r of ranges) {
+      const startAmpm = r[1] || r[5];
+      let endAmpm = r[6] || r[10];
+      // "下午5點-10點" -> the end inherits the afternoon marker
+      if (!endAmpm && r[1] && PM_WORDS.includes(r[1]) && Number(r[7]) < 12) endAmpm = r[1];
+      // "中午12點到5點" -> 17:00
+      if (!endAmpm && r[1] === "中午" && Number(r[7]) < 11) endAmpm = "下午";
+      let startMin = toMinutes(Number(r[2]), minutePart(r[3], r[4]), startAmpm);
+      const endMin = toMinutes(Number(r[7]), minutePart(r[8], r[9]), endAmpm);
+      // "5-10pm" -> the start inherits pm when that keeps the shift in order
+      if (!startAmpm && endAmpm && /pm|下午|晚上/i.test(endAmpm) && Number(r[2]) < 12 && startMin + 720 < endMin) startMin += 720;
+      if (startMin > 24 * 60 || endMin > 24 * 60 || minutePart(r[3], r[4]) > 59 || minutePart(r[8], r[9]) > 59) {
+        bad = true;
+        continue;
+      }
+      const fmt = (m: number) => `${pad(Math.floor((m % 1440) / 60))}:${pad(m % 60)}`;
+      read.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: 0, marked: marker(line), raw: original.trim(), breakStated: brk.stated });
     }
-    const fmt = (m: number) => `${pad(Math.floor((m % 1440) / 60))}:${pad(m % 60)}`;
-    shifts.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: findBreak(line), marked: marker(line), raw: original.trim() });
+    if (bad) unread.push({ line: short, reason: "no_time_range" });
+    if (read.length) {
+      // One break on a line with two shifts goes to the longer one.
+      const longest = read.reduce((a, x) => (shiftHours(x.start, x.end, 0) > shiftHours(a.start, a.end, 0) ? x : a), read[0]);
+      longest.breakMinutes = brk.minutes;
+      shifts.push(...read);
+    }
   }
   return { shifts, unread, range: own };
 }
@@ -210,12 +260,37 @@ const NET = new RegExp(
 );
 const MONTHLY = new RegExp(String.raw`(月薪|底薪|本薪|每月薪資|monthly salary|salary per month|monthly pay)` + MONEY, "i");
 
+/**
+ * The hourly rate, in the ways payslips and messages write it: 時薪 196,
+ * 鐘點費：196, 每小時196元, 196元/小時, 一小時196, Hourly rate: $17.00, $16/hr,
+ * $17 an hour, 17.00 per hour.
+ */
+export function hourlyRateIn(text: string): number | undefined {
+  const t = text.normalize("NFKC");
+  const cur = String.raw`(?:NT\$|US\$|\$|新臺幣|新台幣)?`;
+  const num = String.raw`(\d+(?:\.\d+)?)`;
+  const patterns = [
+    new RegExp(String.raw`(?:時薪|鐘點費|hourly rate|hourly wage|hourly pay|pay rate|rate of pay|rate)\s*[:：]?\s*(?:為|是)?\s*` + cur + String.raw`\s*` + num, "i"),
+    new RegExp(String.raw`(?:每|一|1)\s*個?\s*小時\s*(?:為|是)?\s*` + cur + String.raw`\s*` + num, "i"),
+    new RegExp(cur + String.raw`\s*` + num + String.raw`\s*元?\s*[/／]\s*(?:小時|時|hr\b|hour\b|h\b)`, "i"),
+    new RegExp(cur + String.raw`\s*` + num + String.raw`\s*(?:an|per|a|each)\s+(?:hour|hr)\b`, "i"),
+  ];
+  for (const re of patterns) {
+    const m = t.match(re);
+    if (m) {
+      const v = Number(m[1]);
+      if (Number.isFinite(v) && v > 0 && v < 10_000) return v;
+    }
+  }
+  return undefined;
+}
+
 export function parsePayslipRules(text: string, currency: Payslip["currency"]): Payslip {
   const p: Payslip = { currency };
   const t = text.normalize("NFKC");
-  const rate = t.match(/(時薪|鐘點費|hourly rate|hourly wage|pay rate|rate)\s*[:：]?\s*(?:NT\$|US\$|\$)?\s*(\d+(?:\.\d+)?)/i);
-  if (rate) {
-    p.hourlyRate = Number(rate[2]);
+  const rate = hourlyRateIn(t);
+  if (rate !== undefined) {
+    p.hourlyRate = rate;
     p.rateSource = "payslip";
   }
   const hours = t.match(/(總工時|工時|時數|hours paid|paid hours|hours worked|hours)\s*[:：]?\s*(\d+(?:\.\d+)?)/i);
@@ -284,6 +359,7 @@ export function normaliseModelShifts(rows: ModelShift[]): { shifts: RawShift[]; 
       breakMinutes: Math.max(0, Math.min(600, Math.round(Number(r.break_minutes) || 0))),
       marked: m === "holiday" ? "holiday" : m === "rest_day" ? "rest_day" : m === "regular_day_off" ? "regular_day_off" : null,
       raw: String(r.source_line || "").slice(0, 200),
+      breakStated: (Number(r.break_minutes) || 0) > 0 || findBreakInfo(String(r.source_line || "")).stated,
     });
   }
   return { shifts, dropped };

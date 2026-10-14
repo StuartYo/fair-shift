@@ -21,6 +21,14 @@ export interface Shift {
   dayTypeSource: "default" | "you" | "official_holiday";
   holidayName?: string;
   raw: string; // the input line it came from (redacted)
+  /**
+   * Taiwan: a shift that crosses midnight is split at 0:00, because holidays,
+   * rest days and days off are calendar days. The second part points to the
+   * first; both count as one workday for the 8-hour daily limit.
+   */
+  continuesFrom?: string;
+  /** Longer than 6 hours from start to end with no break written (counted as all work time). */
+  breakUnstated?: boolean;
 }
 
 export interface Payslip {
@@ -110,6 +118,8 @@ export interface PayLine {
 }
 
 export interface Problem {
+  /** Stable id for warnings the page and the eval look for (for example "seven_days"). */
+  id?: string;
   kind: "below_min_wage" | "unpaid_premium" | "unpaid_hours" | "not_computed" | "missing_rule" | "check";
   message: string;
   /** Traditional Chinese message (Taiwan). */
@@ -158,7 +168,7 @@ export interface CheckInput {
 }
 
 export interface Alternative {
-  id: "holiday_as_rest_day" | "holiday_as_holiday" | "tips_in_gross";
+  id: "holiday_as_rest_day" | "holiday_as_holiday" | "tips_in_gross" | "break_assumed";
   /** The reading the main result uses. */
   primary: { en: string; zh: string };
   /** The other reading. */
@@ -192,8 +202,11 @@ export interface FairShiftReport {
     source: "model" | "template";
     model?: string;
   };
-  /** What the headline number depends on, shown right under it. */
-  premises: { en: string; zh: string }[];
+  /**
+   * What the headline number depends on, shown right under it. Warnings about
+   * the input carry an id: break_unstated, net_only, hours_mismatch, unread_lines.
+   */
+  premises: { id?: string; en: string; zh: string }[];
   /** Set when no shift could be read: the UI shows this instead of a result. */
   parseError?: { part: "schedule"; en: string; zh: string; unread: string[] };
   /** Set when the payslip lacks what the check needs (an hourly rate): no amount is shown, the page asks. */

@@ -56,7 +56,7 @@ describe("/api/check", () => {
 describe("/api/status", () => {
   it("reports the caps the README states and says they are per instance", async () => {
     const j = await (await status()).json();
-    expect(j.caps).toMatchObject({ globalRunsPerDay: 60, globalUsdPerDay: 1.5, globalTavilyCreditsPerDay: 40, perRunUsd: 0.05 });
+    expect(j.caps).toMatchObject({ globalRunsPerDay: 60, globalUsdPerDay: 1.5, globalTavilyCreditsPerDay: 32, perRunUsd: 0.05 });
     expect(j.capsScope).toBe("per server instance");
     expect(JSON.stringify(j)).not.toMatch(/tvly-|sk-/);
   });

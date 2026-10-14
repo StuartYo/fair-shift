@@ -6,12 +6,14 @@ import { rulesMockScript } from "../lib/wage/agent";
 import { runFairShift } from "../lib/wage/run";
 import { EVAL_CASES } from "./cases";
 import { HELDOUT_CASES } from "./heldout";
+import { REALSTYLE_CASES } from "./realstyle";
+import { ROUND3_CASES } from "./round3";
 
 // npm run timing: one run of one case (TIMING_CASE, default the hero sample) with
 // the step timeline, to see where the seconds go. Live when both keys are set.
 it("times one run", { timeout: 10 * 60_000 }, async () => {
   const id = process.env.TIMING_CASE || "tw-holiday-unpaid";
-  const c = [...EVAL_CASES, ...HELDOUT_CASES].find((x) => x.id === id);
+  const c = [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES, ...ROUND3_CASES].find((x) => x.id === id);
   if (!c) throw new Error(`no case ${id}`);
   const p = getProviders({ fixtures: fixtures as FixtureSet, script: rulesMockScript() });
   const t0 = Date.now();

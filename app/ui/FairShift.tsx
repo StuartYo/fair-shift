@@ -18,6 +18,7 @@ import {
   Languages,
   Loader2,
   Lock,
+  MessageSquare,
   Phone,
   Play,
   Printer,
@@ -30,6 +31,9 @@ import { SAMPLE_CASES } from "@/eval/samples";
 import { NY_JOB_LABEL, NY_JOB_LABEL_ZH, NY_REGION_LABEL, NY_REGION_LABEL_ZH } from "@/lib/wage/catalog";
 import { DAYTYPE_ZH } from "@/lib/wage/compute";
 import { holidayNameEn, reasons } from "@/lib/wage/explain";
+import { headlineOf } from "@/lib/wage/headline";
+import { shiftCount } from "@/lib/wage/compute";
+import { APP_VERSION } from "@/lib/version";
 import { fmtMoney, holidayLabel, lineRateWords, ruleValueWords, toMarkdown } from "@/lib/wage/export";
 import { citeOf, DISCLAIMER_ZH, lineLabel, lineNote, lineRuleKeys, nextSteps, notChecked, ruleTitle, splitRules, statusWords, type Lang } from "@/lib/wage/i18n";
 import type { Alternative, CheckInput, FairShiftReport, HolidayRecord, Jurisdiction, NyJob, NyRegion, RuleRecord } from "@/lib/wage/types";
@@ -99,8 +103,8 @@ const T = {
   rateHelp: { zh: "薪資單上沒寫時薪才需要填。", en: "Only if the payslip does not show it." },
   privacyShort: { zh: "貼上前先把姓名蓋掉。內容不會被儲存。", en: "Cover names before pasting. Nothing you paste is stored." },
   privacy: {
-    zh: "送出前會先遮掉姓名、身分證字號、電話、Email、帳號、店名和統編，再交給模型或搜尋。Fair Shift 不儲存、也不記錄你貼上的內容；主機只留一般連線紀錄（時間、路徑、IP），不含內容。遮蔽不一定抓得到所有名字。",
-    en: "Names, ID numbers, phones, emails, account numbers, shop names and tax IDs are removed before anything reaches a model or a search API. Fair Shift does not store or log what you paste; the host keeps ordinary request logs (time, path, IP), not the text. The filter can miss a name.",
+    zh: "送出前會先遮掉姓名、身分證字號、電話、Email、帳號、店名和統編，再交給模型或搜尋。Fair Shift 不儲存、也不記錄你貼上的內容；主機只留一般連線紀錄（時間、路徑、IP），不含內容。遮蔽不一定抓得到所有名字。結果頁的「這個結果對嗎？」只會記下你的答案、選填留言、頁面語言和版本號，不含班表或薪資單。",
+    en: "Names, ID numbers, phones, emails, account numbers, shop names and tax IDs are removed before anything reaches a model or a search API. Fair Shift does not store or log what you paste; the host keeps ordinary request logs (time, path, IP), not the text. The filter can miss a name. The \"Was this right?\" button on the result logs only your answer, an optional comment, the page language and the app version, never the schedule or payslip.",
   },
   check: { zh: "核對我的薪水", en: "Check my pay" },
   checking: { zh: "核對中", en: "Checking" },
@@ -151,6 +155,39 @@ const T = {
   addRate: { zh: "填上時薪", en: "Enter the hourly rate" },
   unreadLines: { zh: "沒讀懂的行：", en: "Lines I could not read:" },
   savedResult: { zh: "存檔結果", en: "Saved result" },
+  upTo: { zh: "依你輸入的資料，你最多可能少領", en: "Based on what you entered, you may be owed up to" },
+  netSmall: { zh: "只看到實領，這個差額可能只是扣款", en: "Only take-home pay found: this gap may just be deductions" },
+  breakTag: { zh: "金額取決於休息時間", en: "Depends on your breaks" },
+  alsoCheck: { zh: "也值得確認", en: "Also worth checking" },
+  vizTitle: { zh: "差額怎麼來的", en: "Where the gap comes from" },
+  vizBase: { zh: "照時薪算的工資", en: "Pay at your rate" },
+  vizTopUp: { zh: "補到最低工資", en: "Top-up to the minimum wage" },
+  vizExtra: { zh: "規定要另外加給的", en: "Extra pay the rules add" },
+  vizPaid: { zh: "薪資單上的金額", en: "On your payslip" },
+  vizGap: { zh: "差額", en: "Gap" },
+  vizExpected: { zh: "依規定應領", en: "Expected under the rules" },
+  schedHelp: {
+    zh: "寫法：一行一班，例如「10/5 17:00-22:00」。有休息就寫「休1小時」（9 點到 6 點的班通常有）；跨午夜照寫「22:00-02:00」；同一天兩段寫在同一行「10/5 08-12 17-21」。沒寫下班時間（例如「到打烊」）的班讀不到。",
+    en: "One shift per line, like \"10/5 17:00-22:00\". Write breaks (\"30 min break\" or 休1小時; a 9-to-6 shift usually has one). A night shift is just \"22:00-02:00\". Two shifts on one day can share a line: \"10/5 08-12 17-21\". A shift with no end time (\"until close\") cannot be read.",
+  },
+  slipHelp: {
+    zh: "有「應發」就貼應發（扣款前的金額）；只有「實領」也可以，但差額可能是勞保、健保。時薪寫「時薪 196」或「每小時196元」都可以。",
+    en: "Paste the gross amount if there is one (before deductions); take-home pay alone works, but the gap may be insurance or tax. \"Hourly rate $17\", \"$17/hr\" or \"17.00 per hour\" all work.",
+  },
+  checkAgain: { zh: "用這個時薪再核對", en: "Check again with this rate" },
+  rateSuggest: { zh: "薪資單金額 ÷ 時數 =", en: "Payslip amount ÷ hours =" },
+  continued: { zh: "接續前一天的夜班", en: "night shift continued" },
+  fbQ: { zh: "這個結果對嗎？", en: "Was this right?" },
+  fbYes: { zh: "對", en: "Yes" },
+  fbNo: { zh: "不對", en: "No" },
+  fbUnsure: { zh: "不確定", en: "Not sure" },
+  fbPlaceholder: { zh: "哪裡不對或看不懂？（選填，300 字內，請不要寫姓名、店名或薪水金額）", en: "What was wrong or confusing? (optional, up to 300 characters; no names, shop names or pay amounts)" },
+  fbSend: { zh: "送出", en: "Send" },
+  fbThanks: { zh: "收到了，謝謝！", en: "Thanks, got it." },
+  fbNote: {
+    zh: "只會送出你選的答案、這段留言、頁面語言和版本號。班表、薪資單和結果都不會送出。",
+    en: "Only your answer, this comment, the page language and the app version are sent. Not your schedule, payslip or result.",
+  },
 } satisfies Record<string, Record<Lang, string>>;
 
 /**
@@ -373,6 +410,135 @@ function Stages({ steps, busy, lang, elapsed }: { steps: TraceStep[]; busy: bool
   );
 }
 
+/**
+ * The gap as one picture: what the rules say you should get (pay at your rate,
+ * any top-up to the minimum wage, then each extra the rules add) on top, and
+ * the payslip below on the same scale, with the gap marked.
+ */
+const REASON_SHORT: Partial<Record<string, Record<Lang, string>>> = {
+  holiday: { zh: "國定假日加倍", en: "Holiday double pay" },
+  day_off: { zh: "例假加倍", en: "Day-off double pay" },
+  rest_day: { zh: "休息日加給", en: "Rest day pay" },
+  weekly_ot: { zh: "超過每週 40 小時的加班費", en: "Overtime over 40 a week" },
+  daily_ot: { zh: "加班費（一天超過 8 小時）", en: "Overtime (over 8 a day)" },
+  ny_tipped_ot: { zh: "小費員工加班費", en: "Tipped overtime" },
+  ny_ot: { zh: "加班費", en: "Overtime" },
+  spread: { zh: "工時跨度加給", en: "Spread of hours" },
+};
+
+function GapBar({ r, lang }: { r: FairShiftReport; lang: Lang }) {
+  const c = r.computation;
+  const cur = c.currency;
+  if (c.paidTotal === undefined || c.expectedTotal <= 0) return null;
+  const rs = reasons(c, r.shifts, r.rules).filter((x) => x.kind !== "min_wage" && x.kind !== "unpaid_hours" && x.kind !== "tip_makeup" && (x.amount ?? 0) > 0);
+  const extra = rs.reduce((a, x) => a + (x.amount ?? 0), 0);
+  const topUp = Math.max(0, c.components.minWageTopUp);
+  const base = Math.max(0, c.expectedTotal - extra - topUp);
+  const max = Math.max(c.expectedTotal, c.paidTotal);
+  const w = (n: number) => `${Math.max(0, (n / max) * 100)}%`;
+  const gap = Math.max(0, c.expectedTotal - c.paidTotal);
+  const segs = [
+    { k: "base", label: T.vizBase[lang], amount: base },
+    ...(topUp > 0.005 ? [{ k: "topup", label: T.vizTopUp[lang], amount: topUp }] : []),
+    ...rs.map((x, i) => ({ k: `x${i}`, label: REASON_SHORT[x.kind]?.[lang] ?? x[lang].slice(0, 30), amount: x.amount ?? 0 })),
+  ].filter((x) => x.amount > 0.005);
+  return (
+    <figure className="gapviz" aria-label={T.vizTitle[lang]}>
+      <figcaption>{T.vizTitle[lang]}</figcaption>
+      <div className="gaprow">
+        <span className="gaplabel">{T.vizExpected[lang]}</span>
+        <div className="gaptrack">
+          {segs.map((x) => (
+            <span key={x.k} className={`gapseg ${x.k === "base" ? "base" : x.k === "topup" ? "topup" : "extra"}`} style={{ width: w(x.amount) }} title={`${x.label}: ${fmtMoney(x.amount, cur)}`} />
+          ))}
+        </div>
+        <span className="gapval">{fmtMoney(c.expectedTotal, cur)}</span>
+      </div>
+      <div className="gaprow">
+        <span className="gaplabel">{T.vizPaid[lang]}</span>
+        <div className="gaptrack">
+          <span className="gapseg paid" style={{ width: w(c.paidTotal) }} title={`${T.vizPaid[lang]}: ${fmtMoney(c.paidTotal, cur)}`} />
+          {gap > 0.005 && <span className="gapseg gap" style={{ width: w(gap) }} title={`${T.vizGap[lang]}: ${fmtMoney(gap, cur)}`} />}
+        </div>
+        <span className="gapval">{fmtMoney(c.paidTotal, cur)}</span>
+      </div>
+      <ul className="gaplegend">
+        {segs.map((x) => (
+          <li key={x.k}>
+            <i className={`sw ${x.k === "base" ? "base" : x.k === "topup" ? "topup" : "extra"}`} aria-hidden />
+            {x.label} {fmtMoney(x.amount, cur)}
+          </li>
+        ))}
+        {gap > 0.005 && (
+          <li>
+            <i className="sw gap" aria-hidden />
+            {T.vizGap[lang]} {fmtMoney(gap, cur)}
+          </li>
+        )}
+      </ul>
+    </figure>
+  );
+}
+
+/** "Was this right?": sends only the answer, an optional comment, the language and the app version. */
+function Feedback({ lang, reportId }: { lang: Lang; reportId: string }) {
+  const [answer, setAnswer] = useState<"yes" | "no" | "unsure" | null>(null);
+  const [comment, setComment] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  useEffect(() => {
+    setAnswer(null);
+    setComment("");
+    setState("idle");
+  }, [reportId]);
+  async function send() {
+    if (!answer) return;
+    setState("sending");
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer, comment: comment.trim() || undefined, lang, version: APP_VERSION }),
+      });
+      setState(res.ok ? "sent" : "error");
+    } catch {
+      setState("error");
+    }
+  }
+  if (state === "sent")
+    return (
+      <p className="fb sent" role="status">
+        <CheckCircle2 size={15} aria-hidden /> {T.fbThanks[lang]}
+      </p>
+    );
+  return (
+    <div className="fb" role="group" aria-label={T.fbQ[lang]}>
+      <p className="fbq">
+        <MessageSquare size={15} aria-hidden /> <b>{T.fbQ[lang]}</b>
+      </p>
+      <div className="fbbtns">
+        {(["yes", "no", "unsure"] as const).map((a) => (
+          <button key={a} className={answer === a ? "on" : ""} aria-pressed={answer === a} onClick={() => setAnswer(a)}>
+            {a === "yes" ? T.fbYes[lang] : a === "no" ? T.fbNo[lang] : T.fbUnsure[lang]}
+          </button>
+        ))}
+      </div>
+      {answer && (
+        <>
+          <textarea value={comment} maxLength={300} rows={2} onChange={(e) => setComment(e.target.value)} placeholder={T.fbPlaceholder[lang]} />
+          <div className="fbrow">
+            <button className="go" onClick={send} disabled={state === "sending"}>
+              {T.fbSend[lang]}
+            </button>
+            <small className="muted">{comment.length}/300</small>
+          </div>
+          {state === "error" && <p className="err">{lang === "zh" ? "沒送出去，請再試一次。" : "Could not send. Try again."}</p>}
+        </>
+      )}
+      <p className="muted small">{T.fbNote[lang]}</p>
+    </div>
+  );
+}
+
 /** One page for print or PDF: the verdict, why, each line, the rules with links. */
 function PrintReport({ r, lang }: { r: FairShiftReport; lang: Lang }) {
   const c = r.computation;
@@ -398,6 +564,7 @@ function PrintReport({ r, lang }: { r: FairShiftReport; lang: Lang }) {
             <th>{T.diff[lang]}</th>
             <td>
               <b>{c.shortfall !== undefined ? fmtMoney(Math.max(0, c.shortfall), cur) : "n/a"}</b>
+              {r.payslip.paidKind === "net" && c.shortfall !== undefined && c.shortfall > 0 && <small> {zh ? "（比的是實領，可能含扣款）" : " (vs take-home pay; may include deductions)"}</small>}
             </td>
           </tr>
         </tbody>
@@ -629,7 +796,6 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
           if (ev.type === "report") {
             got = true;
             setReport(ev.report);
-            if (!ev.partial) setTraceOpen(false);
           }
           if (ev.type === "error") setError(ev.message);
         }
@@ -657,6 +823,10 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
   const demo = mode.mode === "mock";
   const zhUI = lang === "zh";
   const showResult = report && c && !report.parseError && !report.needsInput;
+  const head = showResult ? headlineOf(c, report.payslip) : null;
+  const breakDependent = !!report?.premises.some((p) => p.id === "break_unstated");
+  const checks = showResult ? c.problems.filter((p) => p.kind === "check") : [];
+  const nShifts = report ? shiftCount(report.shifts) : 0;
   const rs = showResult ? reasons(c, report.shifts, report.rules) : [];
   const split = showResult ? splitRules(report) : null;
   const hols = showResult ? usedHolidays(report) : [];
@@ -723,20 +893,32 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
               <AlertTriangle size={24} aria-hidden /> {T.needRate[lang]}
             </h2>
             <p>{report.needsInput[lang]}</p>
-            <button
-              className="go"
-              onClick={() => {
-                rateRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                rateRef.current?.focus();
-              }}
-            >
-              {T.addRate[lang]}
-            </button>
+            <div className="inlinerate">
+              <label className="field">
+                {T.rate[lang]}
+                <input
+                  inputMode="decimal"
+                  autoFocus
+                  value={rate}
+                  onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ""))}
+                  placeholder={
+                    report.payslip.grossPaid && report.payslip.hoursPaid
+                      ? `${T.rateSuggest[lang]} ${Math.round((report.payslip.grossPaid / report.payslip.hoursPaid) * 100) / 100}`
+                      : jurisdiction === "TW"
+                        ? "196"
+                        : "17.00"
+                  }
+                />
+              </label>
+              <button className="go" onClick={checkOwn} disabled={busy || !(Number(rate) > 0)}>
+                {T.checkAgain[lang]}
+              </button>
+            </div>
           </section>
         )}
 
         {showResult && (
-          <section className={`verdict ${gap > 0 ? "bad" : "good"}`} ref={verdictRef} aria-live="polite">
+          <section className={`verdict ${head?.kind === "owed" ? "bad" : head?.kind === "maybe_deductions" ? "warnbox" : "good"}`} ref={verdictRef} aria-live="polite">
             {report.precomputed && (
               <p className="precomp">
                 <History size={15} aria-hidden /> <b>{T.savedResult[lang]}.</b> {report.precomputed[lang]}
@@ -746,15 +928,23 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
               {reportTitle ?? T.yourCheck[lang]}
               {demo && <span className="tag">{T.demo[lang]}</span>}
               {report.parse.confidence === "low" && <span className="tag">{T.lowConf[lang]}</span>}
+              {breakDependent && gap > 0 && <span className="tag">{T.breakTag[lang]}</span>}
             </p>
             <h2 className="vhead">
               {c.shortfall === undefined ? (
                 <>
                   {T.expectedOnly[lang]} {fmtMoney(c.expectedTotal, cur)}
                 </>
+              ) : head?.kind === "maybe_deductions" ? (
+                <span className="owed small-owed">
+                  <small>{T.netSmall[lang]}</small> {fmtMoney(gap, cur)}{" "}
+                  <small>
+                    ({(head.share * 100).toFixed(1)}%)
+                  </small>
+                </span>
               ) : gap > 0 ? (
                 <span className="owed">
-                  <small>{T.mayBeOwed[lang]}</small> {fmtMoney(gap, cur)}
+                  <small>{head?.kind === "owed" && head.upTo ? T.upTo[lang] : T.mayBeOwed[lang]}</small> {fmtMoney(gap, cur)}
                 </span>
               ) : (
                 <>
@@ -767,11 +957,13 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                 <AlertTriangle size={15} aria-hidden /> {T.noPaid[lang]}
               </p>
             )}
+
             <p className="vsub">
               {zhUI
-                ? `應領 ${fmtMoney(c.expectedTotal, cur)}${c.paidTotal !== undefined ? `，實領 ${fmtMoney(c.paidTotal, cur)}` : ""}。共 ${report.shifts.length} 個班、${c.workedHours} 小時。`
-                : `Expected ${fmtMoney(c.expectedTotal, cur)}${c.paidTotal !== undefined ? `, paid ${fmtMoney(c.paidTotal, cur)}` : ""}. ${c.workedHours} hours across ${report.shifts.length} shift(s).`}
+                ? `應領 ${fmtMoney(c.expectedTotal, cur)}${c.paidTotal !== undefined ? `，${report.payslip.paidKind === "net" ? "實領" : "薪資單"} ${fmtMoney(c.paidTotal, cur)}` : ""}。共 ${nShifts} 個班、${c.workedHours} 小時。`
+                : `Expected ${fmtMoney(c.expectedTotal, cur)}${c.paidTotal !== undefined ? `, ${report.payslip.paidKind === "net" ? "take-home pay" : "paid"} ${fmtMoney(c.paidTotal, cur)}` : ""}. ${c.workedHours} hours across ${nShifts} shift(s).`}
             </p>
+            {gap > 0 && <GapBar r={report} lang={lang} />}
             {(report.alternatives ?? []).map((a, i) => (
               <Compare key={i} a={a} main={c} lang={lang} cur={cur} />
             ))}
@@ -782,7 +974,21 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                 </b>
                 <ul>
                   {report.premises.map((p, i) => (
-                    <li key={i}>{p[lang]}</li>
+                    <li key={i} className={p.id ? "pwarn" : undefined}>
+                      {p.id && <AlertTriangle size={13} aria-hidden />} {p[lang]}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {checks.length > 0 && (
+              <div className="premise checks">
+                <b>
+                  <AlertTriangle size={14} aria-hidden /> {T.alsoCheck[lang]}
+                </b>
+                <ul>
+                  {checks.map((p, i) => (
+                    <li key={i}>{lang === "zh" ? (p.messageZh ?? p.message) : p.message}</li>
                   ))}
                 </ul>
               </div>
@@ -845,6 +1051,7 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                 <ArrowDown size={14} aria-hidden /> {T.more[lang]}
               </a>
             </div>
+            {!report.precomputed && <Feedback lang={lang} reportId={report.id} />}
           </section>
         )}
 
@@ -971,6 +1178,7 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                 spellCheck={false}
                 placeholder={jurisdiction === "TW" ? "10/5(一) 17:00-22:00\n或：店長：10/5~10/11這週班表\n週五 18-22 休1小時" : "Mon Oct 5 9am-6pm (30 min break)"}
               />
+              <small className="help">{T.schedHelp[lang]}</small>
             </label>
             <label className="field">
               {T.payslip[lang]}
@@ -981,6 +1189,7 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                 spellCheck={false}
                 placeholder={jurisdiction === "TW" ? "薪資單 2026/10/01 - 2026/10/15\n時薪 196\n應發 4,312（或 實領 4,312）" : "Hourly rate: $17.00\nGross pay: $722.50"}
               />
+              <small className="help">{T.slipHelp[lang]}</small>
             </label>
             <label className="field ratefield">
               <span>
@@ -1038,8 +1247,8 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
               <h2>{T.lines[lang]}</h2>
               <p className="muted">
                 {zhUI
-                  ? `共 ${report.shifts.length} 個班、${c.workedHours} 小時。班表由${report.parse.source === "model" ? ` ${report.parse.model} 讀取，並和規則解析交叉比對` : "規則解析器讀取"}。`
-                  : `${report.shifts.length} shift(s), ${c.workedHours} hours. Read by ${report.parse.source === "model" ? report.parse.model : "the rule-based parser"}. ${report.parse.crossCheck}`}
+                  ? `共 ${nShifts} 個班、${c.workedHours} 小時。班表由${report.parse.source === "model" ? ` ${report.parse.model} 讀取，並和規則解析交叉比對` : "規則解析器讀取"}。`
+                  : `${nShifts} shift(s), ${c.workedHours} hours. Read by ${report.parse.source === "model" ? report.parse.model : "the rule-based parser"}. ${report.parse.crossCheck}`}
               </p>
               <div className="tablewrap">
                 <table className="lines">
@@ -1063,6 +1272,7 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
                           <td data-label={T.date[lang]}>
                             {l.date}
                             {sh && sh.dayType !== "workday" && <small>{sh.holidayName && sh.dayType === "holiday" ? holidayName(sh.holidayName, lang) : dayTypeLabel(sh.dayType)}</small>}
+                            {sh?.continuesFrom && <small>{T.continued[lang]}</small>}
                           </td>
                           <td data-label={T.item[lang]}>
                             {lineLabel(l, lang)}
@@ -1143,7 +1353,7 @@ export default function FairShift({ initialMode, initialNote, initialNoteZh }: {
               </div>
             </div>
 
-            <details className="card">
+            <details className="card" open>
               <summary>
                 <h2>{T.rulesUsed[lang]}</h2>
                 <span className="muted small">{recordedText}</span>

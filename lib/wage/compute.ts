@@ -41,26 +41,61 @@ function holidayOn(holidays: HolidayRecord[], date: string): HolidayRecord | und
   return holidays.find((x) => (x.date ? x.date === date : x.monthDay === date.slice(5)));
 }
 
+export function nextDate(d: string): string {
+  const dt = new Date(d + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/** Number of worked shifts: the second part of a shift split at midnight is not counted again. */
+export function shiftCount(shifts: Shift[]): number {
+  return shifts.filter((s) => !s.continuesFrom).length;
+}
+
+/** Longer than 6 hours from start to end, and the line says nothing about a break. */
+export function breakUnstated(r: RawShift): boolean {
+  if (r.breakMinutes > 0 || r.breakStated) return false;
+  return shiftHours(r.start, r.end, 0) > 6;
+}
+
 export function resolveShifts(
   raw: RawShift[],
   opts: { jurisdiction: Jurisdiction; holidays: HolidayRecord[]; restDayWeekday?: number | null; dayOffWeekday?: number | null },
 ): Shift[] {
   const sorted = [...raw].sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-  return sorted.map((r, i) => {
+  // Taiwan: holidays, rest days and days off are calendar days, so a shift that
+  // crosses midnight is split at 0:00 and each part gets its own day type. The
+  // break is shared between the parts in proportion to their length.
+  type Part = { r: RawShift; date: string; start: string; end: string; breakMinutes: number; marked: RawShift["marked"]; second: boolean };
+  const parts: Part[] = [];
+  for (const r of sorted) {
+    const s0 = minutesOf(r.start);
+    const e0 = minutesOf(r.end);
+    if (opts.jurisdiction === "TW" && e0 > 0 && e0 <= s0) {
+      const a = 1440 - s0;
+      const breakA = Math.round((r.breakMinutes * a) / (a + e0));
+      parts.push({ r, date: r.date, start: r.start, end: "24:00", breakMinutes: breakA, marked: r.marked, second: false });
+      parts.push({ r, date: nextDate(r.date), start: "00:00", end: r.end, breakMinutes: r.breakMinutes - breakA, marked: null, second: true });
+    } else parts.push({ r, date: r.date, start: r.start, end: r.end, breakMinutes: r.breakMinutes, marked: r.marked, second: false });
+  }
+  const out: Shift[] = [];
+  for (const [i, p] of parts.entries()) {
     let dayType: DayType = "workday";
     let source: Shift["dayTypeSource"] = "default";
     let holidayName: string | undefined;
     if (opts.jurisdiction === "TW") {
-      const h = holidayOn(opts.holidays, r.date);
+      const h = holidayOn(opts.holidays, p.date);
       holidayName = h?.name;
-      if (r.marked) {
-        dayType = r.marked;
+      if (p.marked) {
+        dayType = p.marked;
         source = "you";
-      } else if (typeof opts.restDayWeekday === "number" && weekday(r.date) === opts.restDayWeekday) {
+      } else if (typeof opts.restDayWeekday === "number" && weekday(p.date) === opts.restDayWeekday) {
         // A holiday on your rest day stays a rest day; the employer owes a substitute day off (MOL, 2026-10-07).
         dayType = "rest_day";
         source = "you";
-      } else if (typeof opts.dayOffWeekday === "number" && weekday(r.date) === opts.dayOffWeekday) {
+      } else if (typeof opts.dayOffWeekday === "number" && weekday(p.date) === opts.dayOffWeekday) {
         dayType = "regular_day_off";
         source = "you";
       } else if (h) {
@@ -68,19 +103,22 @@ export function resolveShifts(
         source = "official_holiday";
       }
     }
-    return {
+    out.push({
       id: `sh${i + 1}`,
-      date: r.date,
-      start: r.start,
-      end: r.end,
-      breakMinutes: r.breakMinutes,
-      hours: shiftHours(r.start, r.end, r.breakMinutes),
+      date: p.date,
+      start: p.start,
+      end: p.end,
+      breakMinutes: p.breakMinutes,
+      hours: shiftHours(p.start, p.end, p.breakMinutes),
       dayType,
       dayTypeSource: source,
       holidayName,
-      raw: r.raw,
-    };
-  });
+      raw: p.r.raw,
+      continuesFrom: p.second ? out.at(-1)!.id : undefined,
+      breakUnstated: breakUnstated(p.r) || undefined,
+    });
+  }
+  return out;
 }
 
 function inRange(r: RuleRecord, date: string): boolean {
@@ -106,6 +144,19 @@ function rule(rules: RuleRecord[], key: RuleKey): RuleRecord | undefined {
   return rules.find((r) => r.key === key);
 }
 
+/** The longest run of consecutive calendar dates in a list of YYYY-MM-DD dates. */
+export function longestRun(dates: string[]): string[] {
+  const sorted = [...new Set(dates)].sort();
+  let best: string[] = [];
+  let cur: string[] = [];
+  for (const d of sorted) {
+    if (cur.length && nextDate(cur.at(-1)!) === d) cur.push(d);
+    else cur = [d];
+    if (cur.length > best.length) best = [...cur];
+  }
+  return best;
+}
+
 const round = (n: number, currency: "TWD" | "USD") => (currency === "TWD" ? Math.round(n) : Math.round(n * 100) / 100);
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
@@ -117,13 +168,19 @@ interface Segment {
   extraKeys?: RuleKey[];
 }
 
-function twSpecialSegments(s: Shift): Segment[] {
+/**
+ * Holiday, regular day off and rest day segments. `before` is the hours already
+ * worked earlier in the same workday (an earlier shift that day, or the part of
+ * a night shift before midnight), so the 8-hour and 2-hour tiers count from the
+ * start of the workday, not of this shift.
+ */
+function twSpecialSegments(s: Shift, before = 0): Segment[] {
   const h = s.hours;
-  const take = (from: number, len: number) => Math.max(0, Math.min(h, from + len) - from);
+  const take = (from: number, len: number) => Math.max(0, Math.min(before + h, from + len) - Math.max(before, from));
   if (s.dayType === "rest_day")
     return [
       { hours: take(0, 2), key: "tw.rest_first2", label: "Rest day, hours 1-2", labelZh: "休息日，第 1 至 2 小時" },
-      { hours: Math.max(0, h - 2), key: "tw.rest_after2", label: "Rest day, after hour 2", labelZh: "休息日，第 3 小時起" },
+      { hours: take(2, Infinity), key: "tw.rest_after2", label: "Rest day, after hour 2", labelZh: "休息日，第 3 小時起" },
     ];
   const k: RuleKey = s.dayType === "holiday" ? "tw.holiday" : "tw.day_off";
   const name = s.dayType === "holiday" ? "Holiday" : "Regular day off";
@@ -131,7 +188,7 @@ function twSpecialSegments(s: Shift): Segment[] {
   return [
     { hours: take(0, 8), key: k, label: `${name}, hours 1-8`, labelZh: `${zh}，第 1 至 8 小時` },
     { hours: take(8, 2), key: "tw.ot_first2", label: `${name}, overtime hours 9-10`, labelZh: `${zh}，第 9 至 10 小時（延長工時）` },
-    { hours: Math.max(0, h - 10), key: "tw.ot_next2", label: `${name}, overtime after hour 10`, labelZh: `${zh}，第 11 小時起（延長工時）` },
+    { hours: take(10, Infinity), key: "tw.ot_next2", label: `${name}, overtime after hour 10`, labelZh: `${zh}，第 11 小時起（延長工時）` },
   ];
 }
 
@@ -139,16 +196,17 @@ function twSpecialSegments(s: Shift): Segment[] {
  * Workday segments. Overtime on a day = hours beyond 8 that day, plus regular
  * hours that push the week past the weekly limit (LSA Enforcement Rules Art.
  * 20-1). The day's overtime hours are tiered per Art. 24: first 2 at 4/3, the
- * rest at 5/3.
+ * rest at 5/3. `before` is the hours already worked earlier in the same workday
+ * and `otBefore` the overtime hours already counted that day.
  */
-function twWorkdaySegments(s: Shift, weekRegularBefore: number, weeklyLimit?: number): Segment[] {
-  const dailyRegular = Math.min(s.hours, 8);
-  const dailyOt = Math.max(0, s.hours - 8);
+function twWorkdaySegments(s: Shift, weekRegularBefore: number, weeklyLimit: number | undefined, before = 0, otBefore = 0): Segment[] {
+  const dailyRegular = Math.max(0, Math.min(s.hours, 8 - before));
+  const dailyOt = s.hours - dailyRegular;
   const straight = weeklyLimit === undefined ? dailyRegular : Math.min(dailyRegular, Math.max(0, weeklyLimit - weekRegularBefore));
   const weeklyOt = dailyRegular - straight;
   const ot = weeklyOt + dailyOt;
-  const first = Math.min(ot, 2);
-  const rest = Math.max(0, ot - 2);
+  const first = Math.min(ot, Math.max(0, 2 - otBefore));
+  const rest = Math.max(0, ot - first);
   if (weeklyOt === 0)
     return [
       { hours: straight, key: null, label: "Regular hours", labelZh: "正常工時" },
@@ -255,37 +313,71 @@ export function compute(input: {
   if (jurisdiction === "TW") {
     const weekly = rule(rules, "tw.weekly_hours");
     if (!weekly && shifts.some((s) => s.dayType === "workday")) missing.add("tw.weekly_hours");
+    // A workday: the calendar date, or for the part of a night shift after
+    // midnight, the date the shift started. Hours and overtime accumulate per
+    // workday, so two shifts on one day (08-12 and 17-22) count together.
+    const byId = new Map(shifts.map((s) => [s.id, s]));
+    const workdayOf = (s: Shift) => (s.continuesFrom ? (byId.get(s.continuesFrom)?.date ?? s.date) : s.date);
+    const day = new Map<string, { hours: number; ot: number; rest: number }>();
     for (const [, ws] of weekList) {
       let regularSoFar = 0;
       for (const s of ws) {
         const { rate, mw } = rateFor(s);
+        const wd = workdayOf(s);
+        const st = day.get(wd) ?? { hours: 0, ot: 0, rest: 0 };
         if (s.dayType === "workday") {
-          for (const seg of twWorkdaySegments(s, regularSoFar, weekly?.value)) push(s, seg, rate, mw);
-          regularSoFar += Math.min(s.hours, 8);
+          const segs = twWorkdaySegments(s, regularSoFar, weekly?.value, st.hours, st.ot);
+          for (const seg of segs) push(s, seg, rate, mw);
+          regularSoFar += Math.max(0, Math.min(s.hours, 8 - st.hours));
+          st.ot += segs.filter((x) => x.key).reduce((a, x) => a + x.hours, 0);
+        } else if (s.dayType === "rest_day") {
+          // Rest day tiers count rest day hours only.
+          for (const seg of twSpecialSegments(s, st.rest)) push(s, seg, rate, mw);
+          st.rest += s.hours;
         } else {
-          for (const seg of twSpecialSegments(s)) push(s, seg, rate, mw);
+          for (const seg of twSpecialSegments(s, st.hours)) push(s, seg, rate, mw);
         }
-        if (s.hours > 12)
-          problems.push({
-            kind: "check",
-            message: `${s.date}: ${s.hours} hours in one day is over the 12-hour daily limit.`,
-            messageZh: `${s.date}：一天工作 ${s.hours} 小時，超過每日 12 小時的上限。`,
-            ruleKeys: [],
-          });
-        if (s.dayType === "regular_day_off")
-          problems.push({
-            kind: "check",
-            message: `${s.date}: work on the regular day off (例假) is only allowed for emergencies. Ask your labor bureau.`,
-            messageZh: `${s.date}：例假只有在天災、事變或突發事件時才能要你上班。可以打 1955 問問看。`,
-            ruleKeys: ["tw.day_off"],
-          });
-        if (s.holidayName && s.dayType !== "holiday")
-          assume(
-            `${s.date} is ${s.holidayName}, but it falls on your ${s.dayType.replace(/_/g, " ")}, so that day's rules apply. Your employer owes you a substitute day off (補假) for the holiday.`,
-            `${s.date} 是${s.holidayName}，但這天是你的${DAYTYPE_ZH[s.dayType]}，所以按${DAYTYPE_ZH[s.dayType]}的規定計算；雇主應該另外給你一天補假。`,
-          );
+        st.hours += s.hours;
+        day.set(wd, st);
       }
     }
+    for (const [wd, st] of [...day.entries()].sort())
+      if (st.hours > 12)
+        problems.push({
+          kind: "check",
+          message: `${wd}: ${Math.round(st.hours * 100) / 100} hours in one workday is over the 12-hour daily limit.`,
+          messageZh: `${wd}：一天工作 ${Math.round(st.hours * 100) / 100} 小時，超過每日 12 小時的上限。`,
+          ruleKeys: [],
+        });
+    for (const s of shifts) {
+      if (s.dayType === "regular_day_off")
+        problems.push({
+          kind: "check",
+          message: `${s.date}: work on the regular day off (例假) is only allowed for emergencies. Ask your labor bureau.`,
+          messageZh: `${s.date}：例假只有在天災、事變或突發事件時才能要你上班。可以打 1955 問問看。`,
+          ruleKeys: ["tw.day_off"],
+        });
+      if (s.holidayName && s.dayType !== "holiday")
+        assume(
+          `${s.date} is ${s.holidayName}, but it falls on your ${s.dayType.replace(/_/g, " ")}, so that day's rules apply. Your employer owes you a substitute day off (補假) for the holiday.`,
+          `${s.date} 是${s.holidayName}，但這天是你的${DAYTYPE_ZH[s.dayType]}，所以按${DAYTYPE_ZH[s.dayType]}的規定計算；雇主應該另外給你一天補假。`,
+        );
+    }
+    if (shifts.some((s) => s.continuesFrom))
+      assume(
+        "A shift that crosses midnight is split at 0:00: the hours after midnight count for the next calendar day (a holiday, rest day or day off is a calendar day), and both parts count as one workday for the 8-hour daily limit. A break is shared between the parts in proportion to their length.",
+        "跨過午夜的班在 0 點切開：0 點以後的時數算隔天（國定假日、休息日、例假都以日曆日計算），但前後兩段合起來算同一個工作日的工時（每天 8 小時）。休息時間按兩段長短比例分攤。",
+      );
+    // LSA Art. 36: a regular day off in every 7 days. Flag 7 calendar days in a row with work.
+    const run = longestRun([...new Set(shifts.filter((s) => s.hours > 0).map((s) => s.date))]);
+    if (run.length >= 7)
+      problems.push({
+        id: "seven_days",
+        kind: "check",
+        message: `You worked ${run.length} days in a row (${run[0]} to ${run.at(-1)}). LSA Art. 36 requires a regular day off (例假) in every 7 days, except in a few industries the Ministry of Labor has approved. This does not change the amount above; the 1955 hotline can tell you more.`,
+        messageZh: `你連續上了 ${run.length} 天班（${run[0]} 到 ${run.at(-1)}）。勞基法第 36 條規定每 7 天至少要有 1 天例假，只有少數經勞動部核定的行業可以調整。這不影響上面的金額，可以打 1955 問問看。`,
+        ruleKeys: [],
+      });
     assume(
       weekly
         ? `Taiwan: overtime counts hours beyond 8 a day or beyond ${weekly.value} a week. The workweek starts on ${WEEKDAY[startDay]}. Rest day and holiday hours have their own rates and do not count toward the ${weekly.value}. Flexible schedules (變形工時) are not checked.`

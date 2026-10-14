@@ -166,7 +166,7 @@ export const ROUND3_CASES: EvalCase[] = [
       scheduleText: "10/19 18:00-22:00\n10/20 18:00-22:00\n10/21 18:00-22:00\n10/22 18:00-22:00\n10/23 18:00-22:00\n10/24 18:00-22:00\n10/25 18:00-22:00",
       payslipText: "時薪 196\n應發 5,488",
     },
-    expected: { shifts: 7, workedHours: 28, expectedTotal: 5488, paidTotal: 5488, shortfall: 0, minWageUsed: 196, flags: ["seven_days"] },
-    why: "7 x 4 h = 28 h x 196 = 5488, paid in full. But 10/19 to 10/25 is 7 days in a row; LSA Art. 36 requires a regular day off in every 7 days, so the page must flag it even though no day off was entered.",
+    expected: { shifts: 7, workedHours: 28, expectedTotal: 6272, paidTotal: 5488, shortfall: 784, minWageUsed: 196, holidayDates: ["2026-10-25"], ruleKeys: ["tw.holiday"], flags: ["seven_days"] },
+    why: "10/19 to 10/25 is 7 days in a row; LSA Art. 36 requires a regular day off in every 7 days, so the page must flag it even though no day off was entered. 10/25 is Retrocession Day (臺灣光復暨金門古寧頭大捷紀念日, a national holiday since the 2025 amendment), so its 4 h are paid double: 24 x 196 + 4 x 196 x 2 = 4704 + 1568 = 6272. Paid 5488. Shortfall 784. CORRECTION after the first demo-mode run: the committed truth was 5488 / 0 because I missed that 10/25 is a holiday; the input is unchanged.",
   },
 ];

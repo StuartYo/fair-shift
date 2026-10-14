@@ -1121,3 +1121,165 @@ td.amt {
   color: var(--accent);
   margin: 6px 0;
 }
+
+/* Round 3: gap picture, warnings, feedback, inline rate */
+.gapviz {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.gapviz figcaption {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.gaprow {
+  display: grid;
+  grid-template-columns: minmax(84px, 9em) 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+.gaplabel {
+  color: var(--muted);
+}
+.gapval {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.gaptrack {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  min-width: 0;
+}
+.gapseg {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+.gapseg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.gapseg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.gapseg:only-child {
+  border-radius: 4px;
+}
+.gapseg.base,
+.gapseg.paid,
+.sw.base {
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.gapseg.topup,
+.sw.topup {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.gapseg.extra,
+.sw.extra {
+  background: var(--accent);
+}
+.gapseg.gap,
+.sw.gap {
+  background: repeating-linear-gradient(135deg, var(--bad) 0 3px, transparent 3px 6px);
+  outline: 1.5px solid var(--bad);
+  outline-offset: -1.5px;
+}
+.gaplegend {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.gaplegend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sw {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+}
+.premise li.pwarn {
+  color: var(--warn);
+  font-weight: 600;
+}
+.premise li.pwarn svg {
+  vertical-align: -2px;
+}
+.premise.checks {
+  border-color: var(--warn);
+}
+.owed.small-owed small {
+  color: var(--warn);
+}
+.field > small.help {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.inlinerate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.inlinerate .field {
+  margin: 0;
+  max-width: 220px;
+}
+.fb {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.fb.sent {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--good);
+  font-weight: 600;
+}
+.fbq {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.fbbtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.fbbtns button.on {
+  border-color: var(--ink);
+  font-weight: 700;
+}
+.fb textarea {
+  width: 100%;
+}
+.fbrow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0;
+}
+@media print {
+  .fb,
+  .gapviz {
+    display: none;
+  }
+}

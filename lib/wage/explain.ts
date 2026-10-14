@@ -1,4 +1,5 @@
 import { specByKey } from "./catalog";
+import { shiftCount } from "./compute";
 import type { Computation, PayLine, RuleKey, RuleRecord, Shift } from "./types";
 
 // Plain-language reasons, the explanation and the message to the employer.
@@ -69,6 +70,8 @@ export interface Reason {
   amount?: number;
   hours?: number;
   dates: string[];
+  /** Overtime on a shift with no break written: a break would make it smaller or remove it. */
+  dependsOnBreak?: boolean;
 }
 
 interface Group {
@@ -102,14 +105,17 @@ export function lineExtra(l: PayLine): number {
 export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): Reason[] {
   const cur = c.currency;
   const out: Reason[] = [];
-  const buckets = new Map<Reason["kind"], { amount: number; hours: number; dates: string[]; keys: Set<RuleKey> }>();
+  const buckets = new Map<Reason["kind"], { amount: number; hours: number; dates: string[]; keys: Set<RuleKey>; noBreak: boolean }>();
+  const byId = new Map(shifts.map((s) => [s.id, s]));
   for (const l of c.lines) {
     if (l.label.startsWith("Tips plus cash wage")) continue;
     const extra = lineExtra(l);
     if (extra <= 0.005) continue;
     const g = GROUPS.find((x) => x.keys.some((k) => l.ruleKeys.includes(k)));
     if (!g) continue;
-    const b = buckets.get(g.kind) ?? { amount: 0, hours: 0, dates: [], keys: new Set<RuleKey>() };
+    const b = buckets.get(g.kind) ?? { amount: 0, hours: 0, dates: [], keys: new Set<RuleKey>(), noBreak: false };
+    // Overtime counted on a long shift with no break written depends on the break.
+    if (["weekly_ot", "daily_ot", "ny_ot", "ny_tipped_ot"].includes(g.kind) && byId.get(l.shiftId)?.breakUnstated) b.noBreak = true;
     b.amount += extra;
     b.hours += l.label.startsWith("Spread") ? 0 : l.hours;
     b.dates.push(l.date);
@@ -127,7 +133,7 @@ export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): R
     const dz = dateList(b.dates, true);
     const de = dateList(b.dates, false);
     const amt = money(b.amount, cur);
-    const base = { kind: g.kind, amount: Math.round(b.amount * 100) / 100, hours: b.hours, dates: [...new Set(b.dates)] };
+    const base = { kind: g.kind, amount: Math.round(b.amount * 100) / 100, hours: b.hours, dates: [...new Set(b.dates)], dependsOnBreak: b.noBreak || undefined };
     if (g.kind === "holiday") {
       const names = [...new Set(shifts.filter((s) => s.dayType === "holiday" && b.dates.includes(s.date)).map((s) => s.holidayName).filter(Boolean))];
       out.push({
@@ -188,6 +194,11 @@ export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): R
       });
     }
   }
+  for (const r of out)
+    if (r.dependsOnBreak) {
+      r.zh += "（班表沒寫休息，整段都算上班；如果中間有休息，這筆會變少或沒有）";
+      r.en += " (no break was written, so the whole shift counts as work; with a break this is smaller or none)";
+    }
   const tipLine = c.lines.find((l) => l.label.startsWith("Tips plus cash wage"));
   if (tipLine)
     out.push({
@@ -229,6 +240,7 @@ export function templateExplanation(
   c: Computation,
   shifts: Shift[],
   rules: RuleRecord[] = [],
+  opts: { netOnly?: boolean } = {},
 ): { text: string; textZh: string; messageToEmployer: string; messageTranslation: string; messageLang: "zh" | "en" } {
   const cur = c.currency;
   const exp = money(c.expectedTotal, cur);
@@ -236,27 +248,47 @@ export function templateExplanation(
   const gap = c.shortfall !== undefined && c.shortfall > 0 ? money(c.shortfall, cur) : null;
   const rs = reasons(c, shifts, rules);
   const tw = cur === "TWD";
+  const n = shiftCount(shifts);
+  const net = !!opts.netOnly && !!paid;
+  const noBreak = rs.some((r) => r.dependsOnBreak);
 
   const text = [
-    `You worked ${c.workedHours} hours in ${shifts.length} shift(s). Based on what you entered and the official rules retrieved, the expected pay is ${exp}.`,
-    paid ? (gap ? `The payslip shows ${paid}, so you may be owed ${gap}.` : `The payslip shows ${paid}. No shortfall was found.`) : "No amount paid was found on the payslip, so there is no difference to show.",
+    `You worked ${c.workedHours} hours in ${n} shift(s). Based on what you entered and the official rules retrieved, the expected pay is ${exp}.`,
+    paid
+      ? gap
+        ? net
+          ? `The payslip only shows take-home pay of ${paid}, after deductions such as labor and health insurance, so part or all of the ${gap} gap may be those deductions. Ask for the gross amount and the list of deductions.`
+          : `The payslip shows ${paid}, so you may be owed ${gap}.`
+        : `The payslip shows ${paid}. No shortfall was found.`
+      : "No amount paid was found on the payslip, so there is no difference to show.",
     rs.length ? `Why: ${rs.map((r) => `${r.en} (${r.cite.en})`).join(". ")}.` : "No overtime, holiday or minimum wage rule changed the amount.",
   ].join(" ");
   const textZh = [
-    `你這期上了 ${shifts.length} 個班，共 ${c.workedHours} 小時。依你輸入的資料和這次取得的官方規定，應領 ${exp}。`,
-    paid ? (gap ? `薪資單是 ${paid}，你可能少領了 ${gap}。` : `薪資單是 ${paid}，沒有短少。`) : "薪資單上沒讀到實領或應發金額，所以沒有算差額。",
+    `你這期上了 ${n} 個班，共 ${c.workedHours} 小時。照你貼的資料和這次查到的官方規定，應該領 ${exp}。`,
+    paid
+      ? gap
+        ? net
+          ? `薪資單只有實領 ${paid}，這是扣掉勞保、健保之後的錢，所以差的 ${gap} 可能有一部分或全部是扣款。可以跟老闆要應發金額和扣款明細再比一次。`
+          : `薪資單上是 ${paid}，你可能少領了 ${gap}。`
+        : `薪資單上是 ${paid}，沒有少領。`
+      : "薪資單上沒讀到實領或應發金額，所以算不出差多少。",
     rs.length ? `原因：${rs.map((r) => `${r.zh}（${r.cite.zh}）`).join("；")}。` : "這期沒有加班、國定假日或最低工資的問題。",
   ].join("");
 
   const dates = shifts.map((s) => s.date).sort();
   const spanOf = (sep: string) => (dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ${sep} ${dates.at(-1)}`) : "");
+  const breakZh = noBreak ? "註：班表上沒有寫休息時間，上面的加班時數是照上下班時間算的；如果中間有休息，請以實際休息時間為準。" : "";
+  const breakEn = noBreak ? "Note: my schedule does not list breaks, so the overtime above counts the whole time from start to finish. If there was a break, the actual break time applies." : "";
   const zhMsg = !gap
     ? "這次核對沒有發現短少，不需要寄信給雇主。"
     : [
         "您好，",
-        `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
-        rs.length ? "差額主要來自：" : "",
+        net
+          ? `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}。薪資單上只有實領金額，看不出扣了哪些項目，所以我還不確定有沒有少領。想請您提供這期的應發金額和扣款明細（例如勞保、健保自付額），讓我核對。`
+          : `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
+        rs.length ? (net ? "我的計算包含：" : "差額主要來自：") : "",
         ...rs.map((r, i) => `${i + 1}. ${r.zh}（${r.cite.zh}）。`),
+        breakZh,
         "我附上一頁式計算報告，裡面有每一天的計算方式和官方條文連結。想請您幫忙確認，如果是我算錯了，也請告訴我。謝謝！",
       ]
         .filter(Boolean)
@@ -265,9 +297,12 @@ export function templateExplanation(
     ? "No shortfall was found, so there is nothing to ask your employer about."
     : [
         "Hi,",
-        `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
-        rs.length ? "The difference comes from:" : "",
+        net
+          ? `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp}. The payslip only shows take-home pay, so I cannot tell which deductions were made. Could you send me the gross pay for this period and the list of deductions (for example labor and health insurance) so I can check?`
+          : `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
+        rs.length ? (net ? "My calculation includes:" : "The difference comes from:") : "",
         ...rs.map((r, i) => `${i + 1}. ${r.en} (${r.cite.en}).`),
+        breakEn,
         "I have attached a one-page report with the calculation for each day and links to the official rules. Could you take a look? If I have missed something, please let me know.",
         "Thank you.",
       ]
@@ -292,7 +327,11 @@ export function allowedNumbers(c: Computation, shifts: Shift[], rules: RuleRecor
   [c.expectedTotal, c.paidTotal ?? 0, c.shortfall ?? 0, c.workedHours, c.components.base, c.components.minWageTopUp, c.components.premiums].forEach(add);
   for (const p of c.problems) if (p.amount !== undefined) add(p.amount);
   for (const l of c.lines) [l.hours, l.baseRate, l.amount, l.deduction ?? 0].forEach(add);
-  for (const r of rules) add(r.value);
+  for (const r of rules) {
+    add(r.value);
+    // "from 2026-01-01": the dates of the rules used may be mentioned too.
+    for (const d of [r.effectiveFrom, r.effectiveTo, r.statusDate]) for (const part of d?.split("-") ?? []) (set.add(part), set.add(String(Number(part))));
+  }
   for (const r of reasons(c, shifts, rules)) {
     if (r.amount !== undefined) add(r.amount);
     if (r.hours !== undefined) add(r.hours);

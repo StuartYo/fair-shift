@@ -6,11 +6,12 @@ import { getProviders } from "../lib/providers";
 import type { FixtureSet } from "../lib/search/fixture";
 import { rulesMockScript } from "../lib/wage/agent";
 import { minWageFor } from "../lib/wage/compute";
-import { runFairShift } from "../lib/wage/run";
+import { flagsOf, runFairShift } from "../lib/wage/run";
 import { runBaseline, scoreBaseline } from "./baseline";
 import { EVAL_CASES } from "./cases";
 import { HELDOUT_CASES } from "./heldout";
 import { REALSTYLE_CASES } from "./realstyle";
+import { ROUND3_CASES } from "./round3";
 import { SAMPLE_CASES } from "./samples";
 import type { FairShiftReport } from "../lib/wage/types";
 import { evalMarkdown, groupLine, headlineTable, recordedLine, speedSearchLine, type EvalRow, type EvalSummary } from "./report";
@@ -34,7 +35,7 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
   it("runs every case", { timeout: 60 * 60_000 }, async () => {
     const mode = currentMode();
     const only = (process.env.EVAL_ONLY || "").split(",").filter(Boolean);
-    const all = [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES];
+    const all = [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES, ...ROUND3_CASES];
     const saved: Record<string, FairShiftReport> = {};
     const cases = only.length ? all.filter((c) => only.includes(c.id)) : all;
     const today = new Date().toISOString().slice(0, 10);
@@ -42,6 +43,20 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
     const agentModels = new Set<string>();
     let baselineModel: string | undefined;
     let spent = 0;
+    const pending: Promise<void>[] = [];
+    let active = 0;
+    const waiters: (() => void)[] = [];
+    const limit = Number(process.env.EVAL_BASELINE_CONCURRENCY || 4);
+    const slot = async (job: () => Promise<void>) => {
+      while (active >= limit) await new Promise<void>((res) => waiters.push(res));
+      active++;
+      try {
+        await job();
+      } finally {
+        active--;
+        waiters.shift()?.();
+      }
+    };
     for (const c of cases) {
       const p = getProviders({ fixtures: fixtures as FixtureSet, script: rulesMockScript() });
       const t0 = Date.now();
@@ -52,6 +67,9 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
       if (mode === "live") r.modelsUsed.forEach((m) => agentModels.add(m));
       spent += r.usage.estCostUsd;
       const tol = c.input.jurisdiction === "TW" ? 1 : 0.01;
+      // Cases with expected warnings: right only if the amount is right and exactly those warnings are shown.
+      const flags = flagsOf(r);
+      const flagsOk = !c.expected.flags || [...flags].sort().join(",") === [...c.expected.flags].sort().join(",");
       const lastDate = r.shifts.map((s) => s.date).sort().at(-1) ?? "";
       const row: EvalRow = {
         case: c.id,
@@ -63,7 +81,10 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
         truthMinWage: c.expected.minWageUsed,
         fairShift: r.computation.expectedTotal,
         fairShiftShortfall: r.computation.shortfall,
-        fairShiftCorrect: ask ? r.needsInput?.kind === ask && r.computation.lines.length === 0 : !r.needsInput && Math.abs(r.computation.expectedTotal - c.expected.expectedTotal) <= tol,
+        fairShiftCorrect: ask ? r.needsInput?.kind === ask && r.computation.lines.length === 0 : !r.needsInput && Math.abs(r.computation.expectedTotal - c.expected.expectedTotal) <= tol && flagsOk,
+        truthFlags: c.expected.flags,
+        fairShiftFlags: c.expected.flags ? flags : undefined,
+        fairShiftConfidence: r.parse.confidence,
         truthNeedsInput: ask,
         fairShiftSec: Math.round(sec * 10) / 10,
         searchCalls: r.searchNotes?.length ?? 0,
@@ -90,31 +111,43 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
         };
       }
       if (mode === "live") {
-        const b = await runBaseline(p.llm, c, today);
-        const s = await scoreBaseline(c, b, p.search);
-        spent += b.costUsd;
-        baselineModel = baselineModel ?? (b.model || undefined);
-        row.baseline = {
-          model: b.model,
-          expectedTotal: b.expectedTotal,
-          shortfall: b.shortfall,
-          minWageUsed: b.minWageUsed,
-          amountCorrect: s.amountCorrect,
-          shortfallCorrect: s.shortfallCorrect,
-          minWageCorrect: s.minWageCorrect,
-          sourcesGiven: s.sourcesGiven,
-          sourcesVerified: s.sourcesVerified,
-          costUsd: b.costUsd,
-          error: b.error,
-        };
+        // The pure-model baseline is slow (reasoning, up to 16k tokens) and independent of the
+        // Fair Shift run, so it runs in the background, at most EVAL_BASELINE_CONCURRENCY at a time.
+        // Fair Shift and the quote-checks-off run stay sequential, so their timings are not shared.
+        const llm = p.llm;
+        const search = p.search;
+        pending.push(
+          slot(async () => {
+            const b = await runBaseline(llm, c, today);
+            const s = await scoreBaseline(c, b, search);
+            spent += b.costUsd;
+            baselineModel = baselineModel ?? (b.model || undefined);
+            row.baseline = {
+              model: b.model,
+              expectedTotal: b.expectedTotal,
+              shortfall: b.shortfall,
+              minWageUsed: b.minWageUsed,
+              amountCorrect: s.amountCorrect,
+              shortfallCorrect: s.shortfallCorrect,
+              minWageCorrect: s.minWageCorrect,
+              sourcesGiven: s.sourcesGiven,
+              sourcesVerified: s.sourcesVerified,
+              costUsd: b.costUsd,
+              error: b.error,
+            };
+            console.log(`  baseline ${c.id}: ${b.expectedTotal ?? b.error} (${s.amountCorrect ? "correct" : "wrong"}), cost so far US$${spent.toFixed(3)}`);
+          }),
+        );
       }
       const guards = r.trace.filter((t) => t.kind === "guard").map((t) => `${t.name}: ${t.detail}`);
       console.log(
-        `${c.id}: expected ${r.computation.expectedTotal} (truth ${c.expected.expectedTotal}) agent ${row.agentRecorded} / fallback ${row.codeFallback}, parse ${r.parse.source}, cost so far US$${spent.toFixed(3)}${guards.map((g) => `\n  ${g}`).join("")}`,
+        `${c.id}: expected ${r.computation.expectedTotal} (truth ${c.expected.expectedTotal})${c.expected.flags ? ` flags [${flags.join(",")}] (truth [${c.expected.flags.join(",")}])` : ""}, Tavily ${r.usage.tavilyCredits}, agent ${row.agentRecorded} / fallback ${row.codeFallback}, parse ${r.parse.source}, cost so far US$${spent.toFixed(3)}${guards.map((g) => `\n  ${g}`).join("")}`,
       );
       rows.push(row);
       if (spent > Number(process.env.EVAL_MAX_USD || 2)) throw new Error(`eval spend cap reached (US$${spent.toFixed(2)})`);
     }
+    await Promise.all(pending);
+    if (spent > Number(process.env.EVAL_MAX_USD || 2)) throw new Error(`eval spend cap reached (US$${spent.toFixed(2)})`);
     const summary: EvalSummary = {
       mode,
       modeNote: modeNote(mode),

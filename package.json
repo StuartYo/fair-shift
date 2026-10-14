@@ -1,6 +1,6 @@
 {
   "name": "fair-shift",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "description": "Fair Shift: hourly pay checker. Nemotron on Nebius Token Factory parses schedules, Tavily retrieves official wage rules, code computes the shortfall.",

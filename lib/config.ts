@@ -52,6 +52,13 @@ function num(name: string, fallback: number): number {
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+/**
+ * Tavily credits for one live check that retrieves every page fresh, measured
+ * with the Tavily usage API before and after cold runs on 2026-10-14 (README,
+ * Public demo caps). /api/status divides the daily credit cap by this.
+ */
+export const TAVILY_CREDITS_PER_COLD_CHECK = 5;
+
 /** Read lazily so tests and deployments can change env without a rebuild. */
 export function limits() {
   return {
@@ -66,7 +73,7 @@ export function limits() {
     // Same values as the public demo's Vercel environment, so README, /api/status and the code agree.
     globalRunsPerDay: num("APP_GLOBAL_RUNS_PER_DAY", 60),
     globalUsdPerDay: num("APP_GLOBAL_USD_PER_DAY", 1.5),
-    globalTavilyCreditsPerDay: num("APP_GLOBAL_TAVILY_CREDITS_PER_DAY", 40),
+    globalTavilyCreditsPerDay: num("APP_GLOBAL_TAVILY_CREDITS_PER_DAY", 32),
   };
 }
 

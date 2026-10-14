@@ -6,14 +6,17 @@ import fixtures from "../fixtures/official-pages.json";
 import { MockProvider } from "../lib/llm/mock";
 import { FixtureSearchProvider, type FixtureSet } from "../lib/search/fixture";
 import { rulesMockScript } from "../lib/wage/agent";
+import { shiftCount } from "../lib/wage/compute";
 import { runFairShift } from "../lib/wage/run";
+import { ROUND3_CASES } from "../eval/round3";
+import { flagsOf } from "../lib/wage/run";
 
 // Full pipeline in demo mode: scripted agent + recorded official pages.
 // Checks that every eval case comes out exactly as hand-computed, and that every
 // rule used carries a verified citation.
 
 describe("eval cases through the full pipeline (demo mode)", () => {
-  for (const c of [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES]) {
+  for (const c of [...EVAL_CASES, ...HELDOUT_CASES, ...REALSTYLE_CASES, ...ROUND3_CASES]) {
     it(`${c.id}: ${c.title}`, async () => {
       const r = await runFairShift(c.input, {
         llm: new MockProvider(rulesMockScript()),
@@ -31,7 +34,8 @@ describe("eval cases through the full pipeline (demo mode)", () => {
         return;
       }
       expect(r.needsInput).toBeUndefined();
-      expect(r.shifts.length).toBe(c.expected.shifts);
+      expect(shiftCount(r.shifts)).toBe(c.expected.shifts);
+      if (c.expected.flags) expect(flagsOf(r).sort()).toEqual([...c.expected.flags].sort());
       expect(r.computation.workedHours).toBe(c.expected.workedHours);
       expect(r.computation.expectedTotal).toBeCloseTo(c.expected.expectedTotal, 2);
       expect(r.computation.paidTotal).toBeCloseTo(c.expected.paidTotal, 2);

@@ -6,7 +6,7 @@ import { REALSTYLE_CASES } from "../eval/realstyle";
 import { matchSample, SAMPLE_CASES } from "../eval/samples";
 import fixtures from "../fixtures/official-pages.json";
 import { AgentSession } from "../lib/agent/session";
-import { limits } from "../lib/config";
+import { limits, TAVILY_CREDITS_PER_COLD_CHECK } from "../lib/config";
 import { MockProvider } from "../lib/llm/mock";
 import { precomputedFor } from "../lib/precomputed";
 import { FixtureSearchProvider, type FixtureSet } from "../lib/search/fixture";
@@ -235,10 +235,12 @@ describe("public demo caps", () => {
   it("README states the same caps as the code defaults and the Vercel environment", () => {
     const L = limits();
     const readme = readFileSync("README.md", "utf8");
-    const caps = readme.slice(readme.indexOf("## Public demo caps"), readme.indexOf("## Day-one"));
-    expect(caps).toContain(`| Checks per day, all visitors | ${L.globalRunsPerDay} |`);
-    expect(caps).toContain(`| Model spend per day | US$${L.globalUsdPerDay} |`);
-    expect(caps).toContain(`| Tavily credits per day | ${L.globalTavilyCreditsPerDay} |`);
-    expect(L).toMatchObject({ globalRunsPerDay: 60, globalUsdPerDay: 1.5, globalTavilyCreditsPerDay: 40 });
+    const caps = readme.slice(readme.indexOf("## Public demo caps"), readme.indexOf("## NVIDIA models"));
+    expect(caps).toContain(`| Checks per day, all visitors | ${L.globalRunsPerDay} per server instance |`);
+    expect(caps).toContain(`| Model spend per day | US$${L.globalUsdPerDay} per instance;`);
+    expect(caps).toContain(`| Tavily credits per day | ${L.globalTavilyCreditsPerDay} per instance |`);
+    expect(L).toMatchObject({ globalRunsPerDay: 60, globalUsdPerDay: 1.5, globalTavilyCreditsPerDay: 32 });
+    // README states the measured cost of a fresh check and the cold checks per day it allows.
+    expect(caps).toContain(`at least ${Math.floor(L.globalTavilyCreditsPerDay / TAVILY_CREDITS_PER_COLD_CHECK)} fresh checks per instance`);
   });
 });

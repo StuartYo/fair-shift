@@ -4,6 +4,7 @@ import { admit, recordSpend } from "@/lib/budget";
 import { limits, modeNoteZh } from "@/lib/config";
 import { clientIp, ndjsonStream } from "@/lib/http";
 import { precomputedFor } from "@/lib/precomputed";
+import { tavilyMonthlyOk } from "@/lib/tavily-usage";
 import { getProviders } from "@/lib/providers";
 import type { FixtureSet } from "@/lib/search/fixture";
 import { rulesMockScript } from "@/lib/wage/agent";
@@ -59,7 +60,11 @@ export async function POST(req: Request) {
   const sample = matchSample(sampleId, input);
   const p = getProviders({ fixtures: fixtures as FixtureSet, script: rulesMockScript() });
 
-  const gate = admit(clientIp(req));
+  // Account-wide Tavily stop (live mode only), then the per-instance caps.
+  const monthOk = p.mode !== "live" || (await tavilyMonthlyOk());
+  const gate = monthOk
+    ? admit(clientIp(req))
+    : ({ ok: false, reason: "The public demo reached its monthly search budget. Try the samples, or come back next month.", retryAfterSec: 86_400 } as const);
   if (!gate.ok) {
     // A sample still shows a real (saved) result; anything else gets the limit message.
     const saved = sample ? precomputedFor(sample.id, "limit") : undefined;
