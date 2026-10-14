@@ -6,7 +6,7 @@ import type { TraceStep } from "../types";
 import { buildTask, fillGaps, ruleGroups, RULES_SYSTEM_PROMPT, rulesComplete, ruleTools, seedUrls, type RuleStore } from "./agent";
 import { isTipped, specsFor, twHolidayActUrl } from "./catalog";
 import { breakUnstated, compute, minWageFor, nextDate, resolveShifts, shiftCount } from "./compute";
-import { allowedNumbers, hasSimplified, numbersOutsideSet, reasons, templateExplanation } from "./explain";
+import { allowedNumbers, hasSimplified, isOvertimeReason, numbersOutsideSet, reasons, templateExplanation } from "./explain";
 import { applyStatusCheck, SEED_MAX_YEAR, startFreshness, type FreshnessStart } from "./freshness";
 import { crossCheck, normaliseModelShifts, parsePayslipRules, parseScheduleDetailed, shiftHours, type ModelShift, type RawShift } from "./parse";
 import { redact } from "./redact";
@@ -489,8 +489,8 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
     const ds = [...new Set(noBreak.map((s) => md(s.date)))];
     extraPremises.push({
       id: "break_unstated",
-      zh: `${ds.join("、")} 的班超過 6 小時，班表沒寫休息，所以整段都算上班時間（勞基法第 35 條：連續工作 4 小時至少要休息 30 分鐘）。如果中間有休息，請在那一行加上「休1小時」或「休息30分」再核對一次，加班費會變少或沒有。`,
-      en: `The shift(s) on ${ds.join(", ")} are longer than 6 hours and no break is written, so the whole time counts as work (LSA Art. 35 requires a 30-minute break after 4 hours). If you had a break, add "休1小時" or "30 min break" to that line and check again; overtime pay goes down or disappears.`,
+      zh: `${ds.join("、")} 的班超過 6 小時，班表沒寫休息，所以整段都算上班時間（勞基法第 35 條：連續工作 4 小時至少要休息 30 分鐘）。如果中間有休息，請在那一行加上「休1小時」或「休息30分」再核對一次，工時會變少，那幾天的加班費、假日加倍或休息日加給也會跟著變少或沒有。`,
+      en: `The shift(s) on ${ds.join(", ")} are longer than 6 hours and no break is written, so the whole time counts as work (LSA Art. 35 requires a 30-minute break after 4 hours). If you had a break, add "休1小時" or "30 min break" to that line and check again; the hours go down, and so does any overtime, holiday or rest day pay on those days.`,
     });
   }
   // Payslip hours that do not match the pasted schedule: the schedule may be incomplete.
@@ -564,7 +564,8 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
   // 7. Explanation: model in live mode, guarded; template otherwise. The
   // employer message is always the template, which cites article numbers.
   const netOnly = payslip.paidKind === "net" && computation.paidTotal !== undefined;
-  const tpl = templateExplanation(computation, shifts, store.rules, { netOnly });
+  const restDayUnknown = j === "TW" && (typeof input.restDayWeekday !== "number" || typeof input.dayOffWeekday !== "number");
+  const tpl = templateExplanation(computation, shifts, store.rules, { netOnly, alternatives, restDayUnknown });
   const parse = { source: parseSource, model: parseModel, crossCheck: check.trim(), confidence, unread };
   const report: FairShiftReport = {
     id: Math.random().toString(36).slice(2, 10),
@@ -592,6 +593,8 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
   }
 
   if (live && !session.overBudget() && Date.now() < deadlineAt + 10_000) {
+    const rsForModel = reasons(computation, shifts, store.rules);
+    const hasOvertime = rsForModel.some(isOvertimeReason);
     const facts = {
       currency,
       worked_hours: computation.workedHours,
@@ -600,11 +603,11 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
       paid_total: computation.paidTotal,
       paid_is_take_home_pay_after_deductions: netOnly || undefined,
       shortfall: computation.shortfall,
-      no_break_written: noBreak.length > 0 || undefined,
-      reasons: reasons(computation, shifts, store.rules).map((r) => ({ zh: r.zh, en: r.en, rule: r.cite })),
+      no_break_written_on: noBreak.length ? [...new Set(noBreak.map((s) => md(s.date)))] : undefined,
+      reasons: rsForModel.map((r) => ({ kind: r.kind, zh: r.zh, en: r.en, rule: r.cite })),
     };
     const res = await session.chatJson(
-      `You explain a pay check result to a 19-year-old hourly worker, the way a friend who knows the rules would text them: short, everyday words, second person. Use only the facts and numbers in the JSON. Mention every reason listed, with its dates, hours, amount and rule, and nothing that is not listed (no other kinds of overtime, holidays or rules). Say "based on what you entered" once; do not say the law proves anything. If paid_is_take_home_pay_after_deductions is true, say the payslip only shows take-home pay, so part of the gap may be deductions such as labor and health insurance. If no_break_written is true, say the overtime assumes no break and would shrink with one. No legal advice, no threats, no headings. At most 90 words in English and 140 characters in Chinese. The Chinese is Traditional Chinese as spoken in Taiwan: use 你, never 您; no official words such as 符合、係、短少金額、爰; for example 「10/10 是國定假日，那天要領兩倍，所以多 1,176 元。」 Reply JSON: {"explanation_en":"...","explanation_zh":"..."}`,
+      `You explain a pay check result to a 19-year-old hourly worker, the way a friend who knows the rules would text them: short, everyday words, second person. Use only the facts and numbers in the JSON. Mention every reason listed, with its dates, hours, amount and rule, and nothing that is not listed (no other kinds of overtime, holidays or rules). Say "based on what you entered" once; do not say the law proves anything. If paid_is_take_home_pay_after_deductions is true, say the payslip only shows take-home pay, so part of the gap may be deductions such as labor and health insurance. If no_break_written_on is present, say that no break was written for those dates, so all the hours count, and the amount would be smaller with a break. Name each reason by its kind as listed: holiday double pay is not overtime, and do not use the words overtime or 加班 unless a listed reason has a kind ending in _ot. No legal advice, no threats, no headings. At most 90 words in English and 140 characters in Chinese. The Chinese is Traditional Chinese as spoken in Taiwan: use 你, never 您; no official words such as 符合、係、短少金額、爰; for example 「10/10 是國定假日，那天要領兩倍，所以多 1,176 元。」 Reply JSON: {"explanation_en":"...","explanation_zh":"..."}`,
       JSON.stringify(facts),
       "ultra",
       900,
@@ -618,7 +621,16 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
     if (zhRaw && !zh) session.emit({ kind: "guard", name: "simplified_chinese", detail: "Model wrote simplified Chinese; the Traditional Chinese template is used.", detailZh: "模型寫成簡體字，改用繁體中文範本。" });
     const allowed = allowedNumbers(computation, shifts, store.rules);
     const bad = numbersOutsideSet(en + " " + zh, allowed);
-    if (en && bad.length === 0) report.explanation = { ...tpl, text: en, textZh: zh || tpl.textZh, source: "model", model: [...session.modelsUsed].at(-1) };
+    // Holiday double pay, rest day pay and the like are not overtime: a summary that calls them overtime is wrong.
+    const wrongOt = !hasOvertime && (/over-?time/i.test(en) || /加班|延長工時/.test(zh));
+    if (en && bad.length === 0 && !wrongOt) report.explanation = { ...tpl, text: en, textZh: zh || tpl.textZh, source: "model", model: [...session.modelsUsed].at(-1) };
+    else if (wrongOt)
+      session.emit({
+        kind: "guard",
+        name: "explanation_rejected",
+        detail: "Model called pay overtime when no overtime rule applies; template used.",
+        detailZh: "模型把不是加班的加給說成加班，改用程式範本。",
+      });
     else
       session.emit({
         kind: "guard",

@@ -139,8 +139,8 @@ export function nextSteps(j: Jurisdiction): Step[] {
       zh: "留好班表、薪資單和打卡紀錄。申訴時不要寄正本。",
     },
     {
-      en: "File a Labor Standards complaint (form LS223) with the New York State Department of Labor. It covers wages earned in the last three years.",
-      zh: "向紐約州勞工局提出勞動標準申訴（LS223 表），可追討最近三年內的工資。",
+      en: "File a Labor Standards complaint (form LS223) with the New York State Department of Labor. The DOL takes complaints only for wages earned in the last three years; that is the DOL's limit, and a claim in court has its own time limit.",
+      zh: "向紐約州勞工局提出勞動標準申訴（LS223 表）。勞工局只受理最近三年內的工資申訴；這是勞工局的申訴期限，向法院請求另有自己的期限。",
       link: { href: "https://dol.ny.gov/unpaidwithheld-wages-and-wage-supplements", en: "NYS DOL: unpaid wages", zh: "紐約州勞工局：未付工資" },
     },
     {

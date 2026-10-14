@@ -1,6 +1,6 @@
 import { specByKey } from "./catalog";
 import { shiftCount } from "./compute";
-import type { Computation, PayLine, RuleKey, RuleRecord, Shift } from "./types";
+import type { Alternative, Computation, PayLine, RuleKey, RuleRecord, Shift } from "./types";
 
 // Plain-language reasons, the explanation and the message to the employer.
 // The model may write the explanation in live mode, but every number it uses
@@ -236,11 +236,77 @@ export function reasons(c: Computation, shifts: Shift[], rules: RuleRecord[]): R
   return out;
 }
 
+const BREAK_SUFFIX_ZH = "（班表沒寫休息，整段都算上班；如果中間有休息，這筆會變少或沒有）";
+const BREAK_SUFFIX_EN = " (no break was written, so the whole shift counts as work; with a break this is smaller or none)";
+
+/** True if a reason is overtime of some kind (daily, weekly, New York, tipped). */
+export function isOvertimeReason(r: Reason): boolean {
+  return ["weekly_ot", "daily_ot", "ny_ot", "ny_tipped_ot"].includes(r.kind);
+}
+
+/**
+ * What the amount in the employer message rests on, in the worker's voice:
+ * the reading of a holiday that may be the rest day, a long shift with no
+ * break written, gross pay that may include tips, and (Taiwan) a rest day and
+ * day off that were not given. The message states these next to the amount,
+ * so the employer sees the premises, not just a number.
+ */
+export function messageAssumptions(
+  c: Computation,
+  shifts: Shift[],
+  opts: { alternatives?: Alternative[]; restDayUnknown?: boolean } = {},
+): { zh: string; en: string }[] {
+  const out: { zh: string; en: string }[] = [];
+  const tw = c.currency === "TWD";
+  const named = (ds: string[], zh: boolean) =>
+    ds
+      .map((d) => {
+        const h = shifts.find((s) => s.date === d && s.holidayName)?.holidayName;
+        return zh ? `${shortDate(d, true)}${h ? `（${h}）` : ""}` : `${shortDate(d, false)}${h ? ` (${holidayNameEn(h)})` : ""}`;
+      })
+      .join(zh ? "、" : ", ");
+  const alts = opts.alternatives ?? [];
+  const hol = alts.find((a) => a.id === "holiday_as_rest_day" || a.id === "holiday_as_holiday");
+  if (hol?.dates?.length) {
+    const dz0 = named([...new Set(hol.dates)].sort(), true);
+    const dz = dz0.endsWith("）") ? dz0 : `${dz0} `;
+    const de = named([...new Set(hol.dates)].sort(), false);
+    out.push(
+      hol.id === "holiday_as_rest_day"
+        ? {
+            zh: `我把 ${dz}算成國定假日出勤，工資加倍；如果那天其實是我的休息日，就要改照休息日的規定計算，另給一天補假，金額會不同。`,
+            en: `I counted ${de} as work on a national holiday, paid double. If that day was my rest day, the rest day rules apply instead, plus a substitute day off, and the amount is different.`,
+          }
+        : {
+            zh: `我把 ${dz}算成我的休息日出勤，另給一天補假；如果那天是當國定假日上班，工資應加倍，金額會不同。`,
+            en: `I counted ${de} as work on my rest day, plus a substitute day off. If it was worked as the national holiday, it is paid double and the amount is different.`,
+          },
+    );
+  } else if (tw && opts.restDayUnknown) {
+    out.push({
+      zh: "我沒有固定的休息日和例假可填，所以每一天都當一般工作日計算；如果其中一天是我的休息日或例假，金額會不同。",
+      en: "I did not give a fixed rest day or regular day off, so every day is counted as a normal workday. If one of them was my rest day or day off, the amount is different.",
+    });
+  }
+  const noBreak = [...new Set(shifts.filter((s) => s.breakUnstated && !s.continuesFrom).map((s) => s.date))].sort();
+  if (noBreak.length)
+    out.push({
+      zh: `班表上沒有寫休息時間（${noBreak.map((d) => shortDate(d, true)).join("、")}），我是把上下班之間整段算成工時；如果中間有休息，請以實際休息時間為準，金額會比較少。`,
+      en: `My schedule does not list a break for ${noBreak.map((d) => shortDate(d, false)).join(", ")}, so I counted the whole time from start to finish as work. If there was a break, the actual break time applies and the amount is lower.`,
+    });
+  if (alts.some((a) => a.id === "tips_in_gross"))
+    out.push({
+      zh: "我把薪資單上的薪資總額當作只有工資、不含小費；如果裡面含小費，實際付的工資比較少，差額會更大。",
+      en: "I counted the gross pay on my payslip as wages only. If it includes my tips, the wages actually paid were lower and the difference is larger.",
+    });
+  return out;
+}
+
 export function templateExplanation(
   c: Computation,
   shifts: Shift[],
   rules: RuleRecord[] = [],
-  opts: { netOnly?: boolean } = {},
+  opts: { netOnly?: boolean; alternatives?: Alternative[]; restDayUnknown?: boolean } = {},
 ): { text: string; textZh: string; messageToEmployer: string; messageTranslation: string; messageLang: "zh" | "en" } {
   const cur = c.currency;
   const exp = money(c.expectedTotal, cur);
@@ -250,7 +316,6 @@ export function templateExplanation(
   const tw = cur === "TWD";
   const n = shiftCount(shifts);
   const net = !!opts.netOnly && !!paid;
-  const noBreak = rs.some((r) => r.dependsOnBreak);
 
   const text = [
     `You worked ${c.workedHours} hours in ${n} shift(s). Based on what you entered and the official rules retrieved, the expected pay is ${exp}.`,
@@ -277,18 +342,22 @@ export function templateExplanation(
 
   const dates = shifts.map((s) => s.date).sort();
   const spanOf = (sep: string) => (dates.length ? (dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} ${sep} ${dates.at(-1)}`) : "");
-  const breakZh = noBreak ? "註：班表上沒有寫休息時間，上面的加班時數是照上下班時間算的；如果中間有休息，請以實際休息時間為準。" : "";
-  const breakEn = noBreak ? "Note: my schedule does not list breaks, so the overtime above counts the whole time from start to finish. If there was a break, the actual break time applies." : "";
+  // The premises go right after the amount, so the employer reads the number with what it rests on.
+  const premises = messageAssumptions(c, shifts, opts);
+  // The break premise is stated once; the per-reason note would repeat it.
+  const brk = premises.some((p) => p.zh.includes("沒有寫休息"));
+  const rZh = (r: Reason) => (brk ? r.zh.replace(BREAK_SUFFIX_ZH, "") : r.zh);
+  const rEn = (r: Reason) => (brk ? r.en.replace(BREAK_SUFFIX_EN, "") : r.en);
   const zhMsg = !gap
     ? "這次核對沒有發現短少，不需要寄信給雇主。"
     : [
         "您好，",
-        net
-          ? `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}。薪資單上只有實領金額，看不出扣了哪些項目，所以我還不確定有沒有少領。想請您提供這期的應發金額和扣款明細（例如勞保、健保自付額），讓我核對。`
-          : `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算應領 ${exp}，薪資單實領 ${paid}，相差 ${gap}。`,
+        `我核對了 ${spanOf("至")} 的班表和薪資單：總工時 ${c.workedHours} 小時，依${tw ? "勞動部公告與勞動基準法" : "紐約州勞工局公布的規定"}計算，${premises.length ? "在下面的前提下" : ""}應領 ${exp}${net ? "" : `，薪資單實領 ${paid}，相差 ${gap}`}。`,
+        premises.length ? "前提：" : "",
+        ...premises.map((p) => `・${p.zh}`),
+        net ? "薪資單上只有實領金額，看不出扣了哪些項目，所以我還不確定有沒有少領。想請您提供這期的應發金額和扣款明細（例如勞保、健保自付額），讓我核對。" : "",
         rs.length ? (net ? "我的計算包含：" : "差額主要來自：") : "",
-        ...rs.map((r, i) => `${i + 1}. ${r.zh}（${r.cite.zh}）。`),
-        breakZh,
+        ...rs.map((r, i) => `${i + 1}. ${rZh(r)}（${r.cite.zh}）。`),
         "我附上一頁式計算報告，裡面有每一天的計算方式和官方條文連結。想請您幫忙確認，如果是我算錯了，也請告訴我。謝謝！",
       ]
         .filter(Boolean)
@@ -297,12 +366,14 @@ export function templateExplanation(
     ? "No shortfall was found, so there is nothing to ask your employer about."
     : [
         "Hi,",
+        `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}${premises.length ? ", and the assumptions below" : ""}, I expected ${exp}${net ? "" : ` and received ${paid}, a difference of ${gap}`}.`,
+        premises.length ? "This rests on:" : "",
+        ...premises.map((p) => `- ${p.en}`),
         net
-          ? `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp}. The payslip only shows take-home pay, so I cannot tell which deductions were made. Could you send me the gross pay for this period and the list of deductions (for example labor and health insurance) so I can check?`
-          : `I checked my schedule against my payslip for ${spanOf("to")}. I worked ${c.workedHours} hours. Using the ${tw ? "Ministry of Labor's published rates and the Labor Standards Act" : "state's published rules"}, I expected ${exp} and received ${paid}, a difference of ${gap}.`,
+          ? "The payslip only shows take-home pay, so I cannot tell which deductions were made. Could you send me the gross pay for this period and the list of deductions (for example labor and health insurance) so I can check?"
+          : "",
         rs.length ? (net ? "My calculation includes:" : "The difference comes from:") : "",
-        ...rs.map((r, i) => `${i + 1}. ${r.en} (${r.cite.en}).`),
-        breakEn,
+        ...rs.map((r, i) => `${i + 1}. ${rEn(r)} (${r.cite.en}).`),
         "I have attached a one-page report with the calculation for each day and links to the official rules. Could you take a look? If I have missed something, please let me know.",
         "Thank you.",
       ]

@@ -101,10 +101,10 @@ const T = {
   payslip: { zh: "薪資單", en: "Payslip" },
   rate: { zh: "時薪", en: "Hourly rate" },
   rateHelp: { zh: "薪資單上沒寫時薪才需要填。", en: "Only if the payslip does not show it." },
-  privacyShort: { zh: "貼上前先把姓名蓋掉。內容不會被儲存。", en: "Cover names before pasting. Nothing you paste is stored." },
+  privacyShort: { zh: "貼上前先把姓名蓋掉。Fair Shift 不留存你貼的內容（細節見下方）。", en: "Cover names before pasting. Fair Shift keeps no copy of what you paste (details below)." },
   privacy: {
-    zh: "送出前會先遮掉姓名、身分證字號、電話、Email、帳號、店名和統編，再交給模型或搜尋。Fair Shift 不儲存、也不記錄你貼上的內容；主機只留一般連線紀錄（時間、路徑、IP），不含內容。遮蔽不一定抓得到所有名字。結果頁的「這個結果對嗎？」只會記下你的答案、選填留言、頁面語言和版本號，不含班表或薪資單。",
-    en: "Names, ID numbers, phones, emails, account numbers, shop names and tax IDs are removed before anything reaches a model or a search API. Fair Shift does not store or log what you paste; the host keeps ordinary request logs (time, path, IP), not the text. The filter can miss a name. The \"Was this right?\" button on the result logs only your answer, an optional comment, the page language and the app version, never the schedule or payslip.",
+    zh: "送出前會先遮掉姓名、身分證字號、電話、Email、帳號、店名和統編，再交給模型或搜尋。Fair Shift 沒有資料庫，不儲存、也不記錄你貼上的內容。會留下的紀錄：主機的一般連線紀錄（時間、路徑、IP，不含內容），以及為了限制每人次數、以 IP 計數的計數器（只在記憶體裡，最多保留一天）。遮蔽後的班表和薪資單會送到 Nebius Token Factory 解析；Tavily 只收到官方網址和固定的搜尋詞。這兩家可能依各自的隱私政策保留請求資料。遮蔽不一定抓得到所有名字。結果頁的「這個結果對嗎？」只會記下你的答案、選填留言、頁面語言和版本號，不含班表或薪資單。",
+    en: "Names, ID numbers, phones, emails, account numbers, shop names and tax IDs are removed before anything reaches a model or a search API. Fair Shift has no database and does not store or log what you paste. What is kept: the host's ordinary request logs (time, path, IP, not the text) and, for the per-visitor limits, a count per IP held in memory for up to a day. The redacted schedule and payslip go to Nebius Token Factory for parsing; Tavily receives only official page addresses and fixed search words. Each may keep request data under its own privacy policy. The filter can miss a name. The \"Was this right?\" button on the result logs only your answer, an optional comment, the page language and the app version, never the schedule or payslip.",
   },
   check: { zh: "核對我的薪水", en: "Check my pay" },
   checking: { zh: "核對中", en: "Checking" },
