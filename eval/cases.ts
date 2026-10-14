@@ -23,7 +23,7 @@ export interface EvalCase {
   title: string;
   /** Sample menu title in Traditional Chinese. */
   titleZh?: string;
-  group?: "main" | "messy" | "heldout" | "realstyle";
+  group?: "main" | "messy" | "heldout" | "realstyle" | "round3";
   input: CheckInput;
   expected: {
     shifts: number;
@@ -41,6 +41,11 @@ export interface EvalCase {
      * monthly salary with no hourly rate). The numeric fields are then not scored.
      */
     needsInput?: "hourly_rate";
+    /**
+     * Warnings the result must show, by premise id, and no others of the
+     * tracked ids (eval/round3.ts). Undefined = not scored.
+     */
+    flags?: string[];
   };
   why: string;
 }
