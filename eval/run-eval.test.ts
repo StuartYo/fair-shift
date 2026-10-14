@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import fixtures from "../fixtures/official-pages.json";
@@ -43,6 +44,16 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
     const agentModels = new Set<string>();
     let baselineModel: string | undefined;
     let spent = 0;
+    let tavily = 0;
+    const git = (cmd: string) => {
+      try {
+        return execSync(`git ${cmd}`, { encoding: "utf8" }).trim();
+      } catch {
+        return "";
+      }
+    };
+    const codeCommit = git("rev-parse --short HEAD") || undefined;
+    const dirtyTree = git("status --porcelain -- lib app") !== "";
     const pending: Promise<void>[] = [];
     let active = 0;
     const waiters: (() => void)[] = [];
@@ -66,6 +77,7 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
       const ask = c.expected.needsInput;
       if (mode === "live") r.modelsUsed.forEach((m) => agentModels.add(m));
       spent += r.usage.estCostUsd;
+      tavily += r.usage.tavilyCredits;
       const tol = c.input.jurisdiction === "TW" ? 1 : 0.01;
       // Cases with expected warnings: right only if the amount is right and exactly those warnings are shown.
       const flags = flagsOf(r);
@@ -103,6 +115,7 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
         const p2 = getProviders({ fixtures: fixtures as FixtureSet, script: rulesMockScript() });
         const r2 = await runFairShift(c.input, { llm: p2.llm, search: p2.search, mode: p2.mode, modeNote: p2.modeNote, verifyRules: false });
         spent += r2.usage.estCostUsd;
+        tavily += r2.usage.tavilyCredits;
         row.noVerify = {
           expectedTotal: r2.computation.expectedTotal,
           correct: ask ? r2.needsInput?.kind === ask : !r2.needsInput && Math.abs(r2.computation.expectedTotal - c.expected.expectedTotal) <= tol,
@@ -154,6 +167,10 @@ describe("Fair Shift vs quote checks off vs pure-model baseline", () => {
       ranAt: new Date().toISOString(),
       cases: rows.length,
       models: { agent: [...agentModels], baseline: baselineModel },
+      codeCommit,
+      dirtyTree,
+      costUsd: Math.round(spent * 10000) / 10000,
+      tavilyCredits: Math.round(tavily * 100) / 100,
     };
     mkdirSync("eval/results", { recursive: true });
     // Mock model + live Tavily is labelled separately and committed (it tests real retrieval).

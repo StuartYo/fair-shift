@@ -21,13 +21,14 @@ export function latestLiveResult(dir = "eval/results"): { file: string; summary:
 export function readmeBlock(file: string, summary: EvalSummary, rows: EvalRow[]): string {
   return [
     START,
-    `Latest live run: \`eval/results/${file.replace(/\.json$/, ".md")}\` (${summary.ranAt.slice(0, 10)}, ${summary.cases} cases). Agent models: ${summary.models.agent.join(", ")}. Baseline: ${summary.models.baseline ?? "not run"}.`,
+    `Latest live run: \`eval/results/${file.replace(/\.json$/, ".md")}\` (${summary.ranAt.slice(0, 10)}, ${summary.cases} cases${summary.codeCommit ? `, code \`${summary.codeCommit}\`${summary.dirtyTree ? " plus uncommitted changes" : ""}` : ""}). Agent models: ${summary.models.agent.join(", ")}. Baseline: ${summary.models.baseline ?? "not run"}.`,
     ``,
     headlineTable(summary, rows),
     ``,
     `- ${recordedLine(rows)}`,
     `- Fair Shift by group: ${groupLine(rows)}.`,
     `- ${speedSearchLine(rows)}`,
+    ...(summary.costUsd !== undefined ? [`- The whole run (three columns, ${summary.cases} cases) cost about US$${summary.costUsd.toFixed(2)} in Nemotron calls and ${summary.tavilyCredits ?? 0} Tavily credits.`] : []),
     END,
   ].join("\n");
 }

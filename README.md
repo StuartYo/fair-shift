@@ -54,6 +54,8 @@ Court figures: 22 checks from 6 Taiwan judgments and 5 New York decisions (34 of
 | Off by more than 5% | 9/22 | 7/22 | 19/22 |
 | No amount (stopped and asked) | 1/22 | 1/22 | 0/22 |
 
+- Exact or within NT$1 / $0.01, by place: first run Taiwan 2/14, New York 5/8; latest Taiwan 7/14, New York 3/8.
+- New York, latest run: 5 of 8 checks differ from the court, and Fair Shift is above the court in all of them (+$12.00 to +$373.75). Diagnosis: the worker claimed less than the law gives (2), two readings of a rule (2), the court's own formula (1).
 - Latest run, why the 12 checks that are not within NT$1 / $0.01 differ (my diagnosis after the run, in eval/realworld/diagnosis.ts): the worker claimed less than the law gives (3), the court rounded the multipliers (3), two readings of a rule (3), the court's table does not add up (1), the court's own formula (1), outside what Fair Shift does (1).
 - The model-alone column comes from the first run (same model, prompt and inputs; it does not depend on Fair Shift's code).
 - 24 public posts (PTT), parsing only. Fair Shift read the shifts right (or invented none where none can be read) in 21 on the first run and 21 on the latest; wrong but flagged 3 and 3; wrong with no warning 0 and 0. The same model alone, asked to list the shifts: 21 of 24 right.

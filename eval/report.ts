@@ -57,6 +57,12 @@ export interface EvalSummary {
   ranAt: string;
   cases: number;
   models: { agent: string[]; baseline?: string };
+  /** Code under test (short commit), and whether lib/ or app/ had uncommitted changes. */
+  codeCommit?: string;
+  dirtyTree?: boolean;
+  /** Nemotron spend for all three columns, and Tavily credits as the app counts them. */
+  costUsd?: number;
+  tavilyCredits?: number;
 }
 
 const money = (n: number | undefined, c: "TWD" | "USD") =>
@@ -166,6 +172,8 @@ export function evalMarkdown(s: EvalSummary, rows: EvalRow[]): string {
     `# Fair Shift eval, ${s.ranAt.slice(0, 10)}`,
     ``,
     `- Mode: ${s.modeNote}`,
+    ...(s.codeCommit ? [`- Code under test: commit \`${s.codeCommit}\`${s.dirtyTree ? " plus uncommitted changes" : ""}.`] : []),
+    ...(s.costUsd !== undefined ? [`- Spend: about US$${s.costUsd.toFixed(2)} in Nemotron calls (all three columns), ${s.tavilyCredits ?? 0} Tavily credits (cached pages cost 0).`] : []),
     `- Agent models: ${s.models.agent.join(", ") || "none (demo mode)"}`,
     `- Pure-model baseline: ${s.models.baseline ?? "not run (needs NEBIUS_API_KEY and TAVILY_API_KEY)"}`,
     `- All cases are synthetic. Truth values are hand-computed by the author from the official rules (method in eval/cases.ts; held-out cases in eval/heldout.ts were committed before this run).`,

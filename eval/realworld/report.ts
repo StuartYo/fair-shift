@@ -280,6 +280,17 @@ export function realworldFiles(dir = "eval/results"): { file: string; res: Realw
 
 const within = (rows: CourtRow[], pick: (r: CourtRow) => Agreement | undefined, set: Agreement[]) => rows.filter((r) => set.includes(pick(r) as Agreement)).length;
 
+const PLAIN_LABEL: Record<string, string> = {
+  fair_shift_bug: "a Fair Shift bug",
+  fair_shift_scope: "outside what Fair Shift does",
+  court_claim_limited: "the worker claimed less than the law gives",
+  court_method: "the court's own formula",
+  legal_reading: "two readings of a rule",
+  court_error: "the court's table does not add up",
+  court_rounding: "the court rounded the multipliers",
+  facts_reconstructed: "my reconstruction of the facts",
+};
+
 export function realworldBlock(files: { file: string; res: RealworldResult }[], diagnosis: Record<string, Record<string, Diagnosis>> = {}): string {
   if (!files.length) return [RW_START, "No live real-world run yet.", RW_END].join("\n");
   const first = files[0];
@@ -304,28 +315,41 @@ export function realworldBlock(files: { file: string; res: RealworldResult }[], 
   lines.push(row("Off by more than 5%", ["off"]));
   lines.push(row("No amount (stopped and asked)", ["no_amount"]));
   lines.push("");
+  const close: Agreement[] = ["exact", "within_tolerance"];
+  const place = (rows: CourtRow[]) => {
+    const tw = rows.filter((r) => r.jurisdiction === "TW");
+    const ny = rows.filter((r) => r.jurisdiction === "US-NY");
+    return `Taiwan ${within(tw, fsA, close)}/${tw.length}, New York ${within(ny, fsA, close)}/${ny.length}`;
+  };
+  lines.push(`- Exact or within NT$1 / $0.01, by place: first run ${place(first.res.courts)}; latest ${place(last.res.courts)}.`);
   const diag = diagnosis[last.file.replace(/\.json$/, "")] ?? {};
+  const nyAll = last.res.courts.filter((r) => r.jurisdiction === "US-NY");
+  const nyOff = nyAll.filter((r) => !close.includes(r.fairShift.agreement));
+  if (nyOff.length) {
+    const diffs = nyOff.map((r) => r.fairShift.diff).filter((d): d is number => typeof d === "number");
+    const above = diffs.length === nyOff.length && diffs.every((d) => d > 0);
+    const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const nyCats = new Map<string, number>();
+    for (const r of nyOff) nyCats.set(diag[r.id]?.category ?? "not diagnosed", (nyCats.get(diag[r.id]?.category ?? "not diagnosed") ?? 0) + 1);
+    lines.push(
+      `- New York, latest run: ${nyOff.length} of ${nyAll.length} checks differ from the court${above ? `, and Fair Shift is above the court in all of them (+${usd(Math.min(...diffs))} to +${usd(Math.max(...diffs))})` : ""}. Diagnosis: ${[...nyCats.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([c, k]) => `${PLAIN_LABEL[c] ?? c.replace(/_/g, " ")} (${k})`)
+        .join(", ")}.`,
+    );
+  }
   const offRows = last.res.courts.filter((r) => r.fairShift.agreement === "off" || r.fairShift.agreement === "within_5pct" || r.fairShift.agreement === "no_amount");
   const cats = new Map<string, number>();
   for (const r of offRows) {
     const c = diag[r.id]?.category ?? "not diagnosed";
     cats.set(c, (cats.get(c) ?? 0) + 1);
   }
-  const PLAIN: Record<string, string> = {
-    fair_shift_bug: "a Fair Shift bug",
-    fair_shift_scope: "outside what Fair Shift does",
-    court_claim_limited: "the worker claimed less than the law gives",
-    court_method: "the court's own formula",
-    legal_reading: "two readings of a rule",
-    court_error: "the court's table does not add up",
-    court_rounding: "the court rounded the multipliers",
-    facts_reconstructed: "my reconstruction of the facts",
-  };
+
   if (offRows.length)
     lines.push(
       `- Latest run, why the ${offRows.length} checks that are not within NT$1 / $0.01 differ (my diagnosis after the run, in eval/realworld/diagnosis.ts): ${[...cats.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([c, k]) => `${PLAIN[c] ?? c.replace(/_/g, " ")} (${k})`)
+        .map(([c, k]) => `${PLAIN_LABEL[c] ?? c.replace(/_/g, " ")} (${k})`)
         .join(", ")}.`,
     );
   if (s.baselineFrom) lines.push(`- The model-alone column comes from the first run (same model, prompt and inputs; it does not depend on Fair Shift's code).`);
