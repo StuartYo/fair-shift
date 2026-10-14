@@ -1,8 +1,9 @@
 import type { EvalCase } from "./cases";
 
-// REAL-STYLE cases. SYNTHETIC data, no real person or employer, but typed the
-// way the round-2 reviewer (a labor-rights caseworker) pasted real inputs that
-// the app got wrong or silently failed on:
+// REAL-STYLE cases. SYNTHETIC data, no real person or employer, shaped like the
+// inputs an earlier version got wrong or silently failed on (found in an
+// internal review that typed inputs the way people send them; no outside
+// expert or real worker was involved):
 //  - a LINE message with the date range in a header line and weekdays per line,
 //    a bare weekday (六), 中午 / 晚上 times;
 //  - a monthly-salary payslip (the right answer is to ask for an hourly rate);
