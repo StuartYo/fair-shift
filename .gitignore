@@ -23,3 +23,5 @@ eval/results/mock-*
 
 # Real-world eval: private source URLs for the paraphrased posts
 eval/realworld/_sources_private.md
+eval/results/realworld-mock-*
+eval/results/realworld-partial-*
