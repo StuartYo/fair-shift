@@ -267,6 +267,26 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
     );
     const rows = Array.isArray(res.shifts) ? (res.shifts as ModelShift[]) : [];
     const { shifts, dropped } = normaliseModelShifts(rows);
+    // A weekday-only line under a week range written in the schedule ("店長：10/5~10/11這週班表", then "六 12-20") is dated
+    // by calendar arithmetic in code, so the model's date does not overrule it (live recording 2026-10-14: Nano put the
+    // Saturday National Day shift on Friday and the page showed no underpayment).
+    const same = (a: RawShift, b: RawShift) => a.date === b.date && a.start === b.start && a.end === b.end;
+    let fixedDates = 0;
+    for (const m of shifts) {
+      if (ruleParse.shifts.some((r) => same(r, m))) continue;
+      const r = ruleParse.shifts.find((x) => x.dateFromRange && x.start === m.start && x.end === m.end && !shifts.some((y) => same(y, x)));
+      if (r) {
+        m.date = r.date;
+        fixedDates++;
+      }
+    }
+    if (fixedDates)
+      session.emit({
+        kind: "guard",
+        name: "date_from_week",
+        detail: `The model dated ${fixedDates} weekday line(s) differently from the week written in the schedule; code's date is used.`,
+        detailZh: `模型把 ${fixedDates} 行只寫星期的班排到和班表標題那週不同的日期，改用程式依標題算出的日期。`,
+      });
     // A break written in the line ("休息1小時") that the rule parser read but the model dropped is kept:
     // the text says it, so code does not let the model's reading overrule it (live eval 2026-10-14, ho-tw-dragon-boat-2027).
     let keptBreaks = 0;

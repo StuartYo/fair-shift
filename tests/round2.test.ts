@@ -182,6 +182,32 @@ describe("model parse guard", () => {
     expect(r.trace.some((t) => t.name === "break_kept")).toBe(true);
     expect(r.computation.expectedTotal).toBe(c.expected.expectedTotal);
   });
+  it("keeps the dates code works out from a week written in the schedule when the model misdates weekday lines", async () => {
+    const c = byId("rs-tw-line-header-week");
+    // A stand-in for Nano that puts Friday's shift on Thursday and Saturday's (National Day) on Friday
+    // (what happened in a live recording on 2026-10-14).
+    const nano = (opts: { jsonMode?: boolean }) =>
+      opts.jsonMode
+        ? {
+            text: JSON.stringify({
+              shifts: [
+                { date: "2026-10-07", start: "17:30", end: "22:00", break_minutes: 0 },
+                { date: "2026-10-08", start: "18:00", end: "22:00", break_minutes: 60 },
+                { date: "2026-10-09", start: "12:00", end: "20:00", break_minutes: 0 },
+              ],
+              payslip: {},
+            }),
+          }
+        : null;
+    const script = rulesMockScript();
+    const llm = new MockProvider((m, o) => nano(o) ?? script(m, o));
+    Object.defineProperty(llm, "kind", { value: "nebius" }); // take the live path (model parse)
+    const r = await runFairShift(c.input, { llm, search: new FixtureSearchProvider(fixtures as FixtureSet), mode: "mock", modeNote: "t", today: "2026-10-14" });
+    expect(r.trace.some((t) => t.name === "date_from_week" && t.detail.includes("2 weekday line"))).toBe(true);
+    expect(r.computation.expectedTotal).toBe(c.expected.expectedTotal);
+    expect(r.computation.shortfall).toBe(c.expected.shortfall);
+    expect(r.parse.confidence).toBe("high");
+  });
 });
 
 describe("fewer model turns", () => {

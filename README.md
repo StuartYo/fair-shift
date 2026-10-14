@@ -86,7 +86,7 @@ Limits of this check:
 | Step | Who | What |
 |---|---|---|
 | 1. Redact | code | Names, ID numbers, phones, emails, account and card numbers, tax IDs, shop names and @handles are removed before any API call. |
-| 2. Parse | Nemotron 3 Nano + code | The model turns the text into shifts and payslip numbers. A rule-based parser reads the same text independently; if they disagree, or a line with a time cannot be read, the result is marked "read with low confidence" and the unread lines are listed on the result. It handles `週五 18-22`, `18時-22時`, `下午5點半到10點`, two shifts on one line (`08-12 17-21`), breaks written at the end of a line (`中間休息半小時`), shifts across midnight, full-width digits, weekdays under a header such as `店長：10/5~10/11這週班表`, and hourly rates written as `時薪 196`, `每小時196元`, `$16/hr` or `17.00 per hour`. |
+| 2. Parse | Nemotron 3 Nano + code | The model turns the text into shifts and payslip numbers. A rule-based parser reads the same text independently; if they disagree, or a line with a time cannot be read, the result is marked "read with low confidence" and the unread lines are listed on the result. It handles `週五 18-22`, `18時-22時`, `下午5點半到10點`, two shifts on one line (`08-12 17-21`), breaks written at the end of a line (`中間休息半小時`), shifts across midnight, full-width digits, weekdays under a header such as `店長：10/5~10/11這週班表`, and hourly rates written as `時薪 196`, `每小時196元`, `$16/hr` or `17.00 per hour`. Weekday lines under a week written in the schedule are dated by code from that week; if the model dates one differently, code's date is used and the step says so. |
 | 3. Stop and ask | code | No shift could be read, or no hourly rate (for example a monthly salary): the page names the box with the problem, shows no amount and runs no agent. The hourly rate box appears right in that message. |
 | 4. Retrieve | code + Tavily | While Nano reads, the official seed pages are fetched with Tavily extract and one Tavily search looks for anything newer on official sites (for example the Executive Yuan's release on the 2027 minimum wage). Details: [docs/SOURCES.md](docs/SOURCES.md). |
 | 5. Find rules | Nemotron 3 Super, two loops in parallel | One loop records dated amounts and Taiwan holidays, the other the multipliers and hour limits. Each rule goes in with an exact quote; code accepts it only if the quote is on a page retrieved in this run and code reads the same value back out of it. Rejected entries go back to the model with the reason. No new model turn after 40 seconds. |
@@ -139,7 +139,7 @@ Node 20.9 or newer.
 
 ```bash
 npm install
-npm test             # 210 unit, pipeline and API tests, no network
+npm test             # 211 unit, pipeline and API tests, no network
 npm run eval         # three-way eval (needs NEBIUS_API_KEY and TAVILY_API_KEY for the last two columns)
 npm run eval:realworld  # court figures and public posts (eval/realworld), live keys needed
 npm run readme       # rewrite the results blocks above from the live result files

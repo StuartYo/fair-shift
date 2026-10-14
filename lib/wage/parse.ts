@@ -125,6 +125,8 @@ export interface RawShift {
   raw: string;
   /** The line says how long the break is, or that there is none. */
   breakStated?: boolean;
+  /** A weekday-only line ("六 12-20") dated by calendar arithmetic from a week range written in the schedule. */
+  dateFromRange?: boolean;
 }
 
 export interface ScheduleParse {
@@ -203,10 +205,14 @@ export function parseScheduleDetailed(text: string, year: number, period?: { sta
       if (TIME_HINT.test(stripped) && !scheduleDateRange(line, year)) unread.push({ line: short, reason: "no_time_range" });
       continue;
     }
+    let fromRange = false;
     if (!date) {
       const wd = findWeekday(line);
       const hits = wd === null ? [] : periodDates.filter((d) => new Date(d + "T00:00:00Z").getUTCDay() === wd);
-      if (hits.length === 1) date = hits[0];
+      if (hits.length === 1) {
+        date = hits[0];
+        fromRange = !!own;
+      }
       else {
         unread.push({ line: short, reason: wd === null ? "no_date" : "weekday_ambiguous" });
         continue;
@@ -231,7 +237,7 @@ export function parseScheduleDetailed(text: string, year: number, period?: { sta
         continue;
       }
       const fmt = (m: number) => `${pad(Math.floor((m % 1440) / 60))}:${pad(m % 60)}`;
-      read.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: 0, marked: marker(line), raw: original.trim(), breakStated: brk.stated });
+      read.push({ date, start: fmt(startMin), end: fmt(endMin), breakMinutes: 0, marked: marker(line), raw: original.trim(), breakStated: brk.stated, ...(fromRange ? { dateFromRange: true } : {}) });
     }
     if (bad) unread.push({ line: short, reason: "no_time_range" });
     if (read.length) {
