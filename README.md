@@ -64,7 +64,7 @@ Court figures: 22 checks from 6 Taiwan judgments and 5 New York decisions (34 of
 
 What the first run found, and what I fixed:
 
-- No minimum wage for any shift before 2026, in Taiwan or New York, yet the page still showed a number; the missing rule was only in the problem list. Fair Shift now also reads the official history pages (the Ministry of Labor's 基本工資之制訂與調整經過 and NYS DOL's History of the Minimum Wage), and if the rate is still missing the warning sits next to the number. Two New York checks that were exact in the first run were exact only because the missing minimum wage also dropped spread-of-hours pay that the workers had abandoned in court.
+- No minimum wage for any shift before 2026, in Taiwan or New York, yet the page still showed a number; the missing rule was only in the problem list. Fair Shift now also reads the official history pages (the Ministry of Labor's 基本工資之制訂與調整經過 and NYS DOL's History of the Minimum Wage), and if the rate is still missing the warning sits next to the number. Four of the five New York checks that were exact in the first run were exact only because the missing minimum wage also dropped spread-of-hours pay: two where the workers had abandoned that claim in court, and two where spread of hours has a disputed second reading (see Limits below). That, and one schedule the model misread in the rerun (below), is why New York goes from 5 of 8 to 2 of 8.
 - 2023-09-28 was paid as Teachers' Day, a day off only since the 2025 amendment.
 - Hours were rounded to 0.01 before multiplying (14 h 20 min became 14.33 h).
 
