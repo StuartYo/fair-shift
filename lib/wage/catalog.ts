@@ -29,6 +29,8 @@ export interface RuleSpec {
   ask: string;
   /** New York: which job types need this rule. Default: all. */
   nyJobs?: NyJob[];
+  /** An official page with past values, added to the task only when a shift falls before `beforeYear`. */
+  historySeed?: { url: string; beforeYear: number; focus: string };
 }
 
 
@@ -51,6 +53,21 @@ export const LSA_ART39 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL01493
 export const LSA_ART40 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014930&flno=40";
 export const LSA_RULES_ART20_1 = "https://laws.mol.gov.tw/FLAW/FLAWDOC01.aspx?id=FL014931&flno=20-1";
 export const MOL_HOURLY = "https://www.mol.gov.tw/1607/28162/28166/28180/28182/28188/29022/";
+/**
+ * 基本工資之制訂與調整經過 (MOL, PDF): every basic wage adjustment up to the
+ * 2024 rate, one numbered line each ("38.民國112年9月14日發布，自113年1月1日起實施，
+ * ...每小時基本工資調整為183元。"). Retrieved with Tavily extract on 2026-10-14.
+ * Used for shift dates before 2025; before the Minimum Wage Act (in force
+ * 2025-01-01) the hourly minimum was called 每小時基本工資.
+ */
+export const MOL_BASIC_WAGE_HISTORY =
+  "https://www.mol.gov.tw/media/idxna0og/%E5%9F%BA%E6%9C%AC%E5%B7%A5%E8%B3%87%E4%B9%8B%E5%88%B6%E8%A8%82%E8%88%87%E8%AA%BF%E6%95%B4%E7%B6%93%E9%81%8E.pdf?mediaDL=true";
+/**
+ * History of the Minimum Wage in New York State (NYS DOL): rates by region from
+ * 2016 to 2026, as "$16.00 per hour on and after January 1, 2024;" under region
+ * headings. Retrieved with Tavily extract on 2026-10-14. Used for dates before 2026.
+ */
+export const NY_MW_HISTORY = "https://dol.ny.gov/history-minimum-wage-new-york-state";
 /**
  * 紀念日及節日實施條例 Art. 3 to 9, quoted verbatim on the DGPA government office
  * calendar page of each year (same source as the lunar holiday dates). law.moj.gov.tw
@@ -81,7 +98,8 @@ export const RULE_SPECS: RuleSpec[] = [
     requiresDate: true,
     seedUrls: [MOL_HISTORY, MOL_2027],
     query: "每小時最低工資 自1月1日起實施 勞動部",
-    ask: "Hourly minimum wage (每小時最低工資) and the date it takes effect. Record one entry per rate whose dates cover a shift date (a rate stays in force until the next one starts). Quote one whole sentence that states both the date and the hourly amount, e.g. from 民國 through 每小時最低工資為196元。 on the rate history page, or from 決定自116年1月1日起 through 由196元調整至205元。 in the press release.",
+    ask: "Hourly minimum wage (每小時最低工資) and the date it takes effect. Record one entry per rate whose dates cover a shift date (a rate stays in force until the next one starts). Quote one whole sentence that states both the date and the hourly amount, e.g. from 民國 through 每小時最低工資為196元。 on the rate history page, or from 決定自116年1月1日起 through 由196元調整至205元。 in the press release. For shift dates before 2025 the rate was called 每小時基本工資: on 基本工資之制訂與調整經過 quote the numbered line for the rate in force on the shift date, e.g. from 民國112年9月14日發布 through 每小時基本工資調整為183元。, and set effective_from to the date after 自 (自113年1月1日起 means 2024-01-01), not the date it was announced.",
+    historySeed: { url: MOL_BASIC_WAGE_HISTORY, beforeYear: 2025, focus: "每小時基本工資調整為 自 年1月1日起實施" },
   },
   {
     key: "tw.ot_first2",
@@ -177,7 +195,8 @@ export const RULE_SPECS: RuleSpec[] = [
     requiresDate: true,
     seedUrls: [NY_P700, NY_MW],
     query: "New York State minimum wage per hour New York City Long Island Westchester remainder of state",
-    ask: "Basic hourly minimum wage for the worker's region and the date range it applies to. Use one quote for the amount and one for the date if the page splits them.",
+    ask: "Basic hourly minimum wage for the worker's region and the date range it applies to. Use one quote for the amount and one for the date if the page splits them. For dates before 2026, the History of the Minimum Wage page lists rates under region headings: quote one line such as '$16.00 per hour on and after January 1, 2024' from the list under the worker's region (New York City: All Employers; Long Island, and Westchester counties; Remainder of state), not the fast food list, and set effective_from to that date.",
+    historySeed: { url: NY_MW_HISTORY, beforeYear: 2026, focus: "Basic Minimum Hourly Rates per hour on and after January 1" },
   },
   {
     key: "ny.ot_weekly",

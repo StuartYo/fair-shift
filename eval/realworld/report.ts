@@ -71,6 +71,8 @@ export interface RealworldSummary {
   codeCommit: string;
   dirtyTree: boolean;
   models: { agent: string[]; baseline?: string };
+  /** The pure-model baseline was copied from this earlier result file (it does not depend on Fair Shift's code). */
+  baselineFrom?: string;
   costUsd: number;
   tavilyCredits: number;
   notUsed: { tw: number; ny: number; twRead: number; nyRead: number };
@@ -198,6 +200,7 @@ export function realworldMarkdown(stem: string, res: RealworldResult, diagnosis:
   out.push("");
   out.push(`- Run: \`${stem}\` (${s.mode}). ${s.modeNote}`);
   out.push(`- Code under test: commit \`${s.codeCommit}\`${s.dirtyTree ? " plus uncommitted changes" : ""}. Agent models: ${s.models.agent.join(", ") || "-"}. Baseline: ${s.models.baseline ?? "not run"}.`);
+  if (s.baselineFrom) out.push(`- The model-alone column is copied from \`${s.baselineFrom}\` (same model, prompt and inputs; it does not depend on Fair Shift's code), so this run's spend is Fair Shift only.`);
   out.push(`- Spend: about US$${s.costUsd.toFixed(3)} in Nemotron calls, ${round2(s.tavilyCredits)} Tavily credits (as the app counts them; cached pages cost 0).`);
   out.push(`- Cases: ${courts.length} court checks from ${s.judgments.tw} Taiwan judgments and ${s.judgments.ny} New York decisions; ${posts.length} public posts. Judgments read and not used: ${s.notUsed.tw} of ${s.notUsed.twRead} Taiwan, ${s.notUsed.ny} of ${s.notUsed.nyRead} New York (reasons in eval/realworld/courts-*.ts).`);
   out.push(`- Expected values were committed before any run (commit "Add real-world eval set with frozen expected values"). Reasons below come from eval/realworld/diagnosis.ts, written after the run; where none is written yet, the reason expected before the run is shown.`);

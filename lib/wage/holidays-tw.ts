@@ -82,3 +82,19 @@ export const LUNAR_QUOTE_RULES: Record<LunarHoliday["group"], { rule: RegExp; of
   dragon_boat: { rule: /端午節[:：]農曆五月五日/, off: /端午節[^：:]*[:：]均放假一日/ },
   mid_autumn: { rule: /中秋節[:：]農曆八月十五日/, off: /中秋節[:：]均放假一日/ },
 };
+
+/**
+ * National days off added by the 2025 amendment of 紀念日及節日實施條例
+ * (passed 2025-05-09, promulgated 2025-05-28, in force from 2025-05-30 under
+ * Art. 13 of the Central Regulation Standard Act). Before that these dates
+ * were normal workdays for private employers, so a shift on 2024-09-28 is not
+ * holiday work. The agent's holiday records come from the act as it stands now,
+ * so code applies the start date. 除夕前一日 (also added) is a lunar holiday and
+ * only appears in the table above for 2026 onward.
+ */
+export const HOLIDAYS_ADDED_2025 = { monthDays: ["09-28", "10-25", "12-25"], from: "2025-05-30" } as const;
+
+/** True when a fixed-date holiday did not yet exist on that date. */
+export function notYetHoliday(monthDay: string, date: string): boolean {
+  return (HOLIDAYS_ADDED_2025.monthDays as readonly string[]).includes(monthDay) && date < HOLIDAYS_ADDED_2025.from;
+}

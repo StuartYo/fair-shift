@@ -2,7 +2,7 @@ import { normalise } from "../agent/citations";
 import type { RetrievedDoc } from "../types";
 import { LUNAR_HOLIDAYS, LUNAR_QUOTE_RULES } from "./holidays-tw";
 import { statedDates, statedHourLimits, statedRates } from "./numbers";
-import { tipHeadings, type ProposedHoliday, type ProposedRule } from "./verify";
+import { statedStartDates, tipHeadings, type ProposedHoliday, type ProposedRule } from "./verify";
 import type { RuleKey } from "./types";
 
 // Deterministic extraction from retrieved official text. Used when the agent
@@ -57,6 +57,10 @@ export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRu
         for (const m of text.matchAll(/民國\d+年\d+月\d+日發布，自(\d+)年(\d+)月(\d+)日起實施，訂定每月最低工資為[\d,]+元，每小時最低工資為(\d+)元。/g)) {
           out.push({ key, value: Number(m[4]), effective_from: statedDates(m[0]).find((x) => x.endsWith("-01-01")) ?? statedDates(m[0])[1], citations: [{ source_url: d.url, quote: m[0] }] });
         }
+        // 基本工資之制訂與調整經過 (rates up to 2024): "38.民國112年9月14日發布，自113年1月1日起實施，每月基本工資調整為27,470 元，每小時基本工資調整為183元。"
+        for (const m of text.matchAll(/民國\d+年\d+月\d+日發布，自(\d+)年(\d+)月(\d+)日起實施，(?:每月基本工資調整為[\d,]+ ?元，)?每小時基本工資調整為(\d+) ?元。/g)) {
+          out.push({ key, value: Number(m[4]), effective_from: statedStartDates(m[0])[0], citations: [{ source_url: d.url, quote: m[0] }] });
+        }
         for (const m of text.matchAll(/決定自(\d+)年(\d+)月(\d+)日起，[^。]*?每小時最低工資[^。]*?至(\d+)元。調整案將由勞動部陳報行政院核定。/g)) {
           out.push({ key, value: Number(m[4]), effective_from: statedDates(m[0])[0], citations: [{ source_url: d.url, quote: m[0] }] });
         }
@@ -84,6 +88,21 @@ export function fallbackRules(docs: RetrievedDoc[], keys: RuleKey[]): ProposedRu
                   { source_url: d.url, quote: range[0] },
                 ],
               });
+          }
+        }
+        // History of the Minimum Wage in New York State: rows under region headings in the basic (not fast food) list.
+        const basic = text.match(/Basic Minimum Hourly Rates.*?(?=Minimum Hourly Rates for Fast Food|$)/);
+        if (basic) {
+          const sections: [string, RegExp][] = [
+            ["nyc", /New York City:.*?All Employers:(.*?)(?=Long Island|$)/],
+            ["li_westchester", /Long Island, and Westchester counties:(.*?)(?=Remainder of state|$)/],
+            ["rest", /Remainder of state \(outside[^)]*\):(.*)$/],
+          ];
+          for (const [region, re3] of sections) {
+            const sec = basic[0].match(re3);
+            if (!sec) continue;
+            for (const row of sec[1].matchAll(/\$(\d+\.\d{2}) per hour on and after ([A-Z][a-z]+ \d{1,2}, \d{4})/g))
+              out.push({ key, region, value: Number(row[1]), effective_from: statedDates(row[2])[0], citations: [{ source_url: d.url, quote: row[0] }] });
           }
         }
         const next = text.match(

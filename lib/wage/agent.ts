@@ -75,6 +75,11 @@ export function buildTask(
       } else pages.push({ url, focus: s.query.slice(0, 200), for: [s.key] });
     }
   }
+  // Past rates: an official history page, only when a shift falls before the years the seed pages state.
+  for (const s of specs) {
+    const h = s.historySeed;
+    if (h && shiftDates.some((d) => Number(d.slice(0, 4)) < h.beforeYear) && !pages.some((p) => p.url === h.url)) pages.push({ url: h.url, focus: h.focus, for: [s.key] });
+  }
   for (const e of extraPages) if (!pages.some((p) => p.url === e.url) && (!group || e.for.some((k) => group.keys.includes(k as RuleKey)))) pages.push({ ...e, found_by_search: true });
   let holidays: RulesTask["holidays_to_check"];
   if (j === "TW" && (!group || group.holidays)) {

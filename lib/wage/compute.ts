@@ -1,5 +1,5 @@
 import { isHospitality, isTipped, NY_JOB_LABEL, NY_JOB_LABEL_ZH, NY_REGION_LABEL, NY_REGION_LABEL_ZH, specByKey } from "./catalog";
-import { LUNAR_YEARS } from "./holidays-tw";
+import { HOLIDAYS_ADDED_2025, LUNAR_YEARS, notYetHoliday } from "./holidays-tw";
 import type {
   Computation,
   DayType,
@@ -38,7 +38,8 @@ export function weekStartOf(date: string, startDay = 1): string {
 }
 
 function holidayOn(holidays: HolidayRecord[], date: string): HolidayRecord | undefined {
-  return holidays.find((x) => (x.date ? x.date === date : x.monthDay === date.slice(5)));
+  // Teachers' Day, Retrocession Day and Constitution Day became days off only in 2025.
+  return holidays.find((x) => (x.date ? x.date === date : x.monthDay === date.slice(5) && !notYetHoliday(x.monthDay, date)));
 }
 
 export function nextDate(d: string): string {
@@ -396,6 +397,12 @@ export function compute(input: {
         "Days not marked otherwise are treated as normal workdays. If one of them was your rest day, more is owed.",
         "沒有特別標示的日子都當作一般工作日。如果其中一天其實是你的休息日，應領的會更多。",
       );
+    const notYet = [...new Set(shifts.filter((s) => notYetHoliday(s.date.slice(5), s.date)).map((s) => s.date))];
+    if (notYet.length)
+      assume(
+        `${notYet.join(", ")}: Teachers' Day (9/28), Retrocession Day (10/25) and Constitution Day (12/25) became national days off only from ${HOLIDAYS_ADDED_2025.from} (amendment promulgated 2025-05-28), so earlier dates count as normal days.`,
+        `${notYet.join("、")}：教師節（9/28）、臺灣光復暨金門古寧頭大捷紀念日（10/25）、行憲紀念日（12/25）是 ${HOLIDAYS_ADDED_2025.from} 起（2025-05-28 修正公布）才放假，之前的日子按一般日子計算。`,
+      );
     const outside = [...new Set(shifts.map((s) => s.date.slice(0, 4)))].filter((y) => !LUNAR_YEARS.includes(y));
     if (outside.length)
       assume(
@@ -579,6 +586,8 @@ export function compute(input: {
   }
 
   const expectedTotal = round(lines.reduce((a, l) => a + l.amount, 0), currency);
+  // Amounts use exact hours (50 minutes = 0.8333 h); shown hours are rounded to 0.01.
+  for (const l of lines) l.hours = Math.round(l.hours * 100) / 100;
   const workedHours = Math.round(shifts.reduce((a, s) => a + s.hours, 0) * 100) / 100;
   const paidTotal = payslip.grossPaid;
   const shortfall = paidTotal !== undefined ? round(expectedTotal - paidTotal, currency) : undefined;

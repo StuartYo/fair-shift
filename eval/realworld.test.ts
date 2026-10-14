@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import fixtures from "../fixtures/official-pages.json";
 import { currentMode, modelChain, modeNote, priceForModel } from "../lib/config";
@@ -24,6 +24,9 @@ import type { CourtCheck } from "./realworld/types";
 // eval/results/realworld-<time>.json and .md (commit these). Without keys it runs
 // Fair Shift in demo mode and writes realworld-mock-* (gitignored).
 // RW_ONLY=id1,id2 limits the run. RW_MAX_USD caps Nemotron spend (default 1.00).
+// RW_BASELINE_FROM=eval/results/realworld-<time>.json copies the pure-model
+// baseline from an earlier run instead of calling it again (it does not depend
+// on Fair Shift's code); the report says so.
 
 process.env.TAVILY_CACHE_DIR ??= ".cache/tavily";
 
@@ -65,6 +68,8 @@ describe("real-world check", () => {
     const ranAt = new Date().toISOString();
     const codeCommit = git("rev-parse --short HEAD");
     const dirtyTree = git("status --porcelain -- lib app") !== "";
+    const baselineFrom = process.env.RW_BASELINE_FROM?.trim() || undefined;
+    const prior = baselineFrom ? (JSON.parse(readFileSync(baselineFrom, "utf8")) as RealworldResult) : undefined;
     const agentModels = new Set<string>();
     let baselineModel: string | undefined;
     let spent = 0;
@@ -141,7 +146,10 @@ describe("real-world check", () => {
       };
       courtRows.push(row);
       console.log(`${c.id}: court ${c.court.figure}, Fair Shift ${value ?? `no amount (${r.needsInput?.kind ?? "no shift"})`} -> ${a.agreement}; Tavily ${r.usage.tavilyCredits}; spent US$${spent.toFixed(3)}`);
-      if (mode === "live") {
+      if (prior) {
+        row.baseline = prior.courts.find((x) => x.id === c.id)?.baseline ?? null;
+        baselineModel = prior.summary.models.baseline;
+      } else if (mode === "live") {
         const llm = p.llm;
         pending.push(
           slot(async () => {
@@ -181,7 +189,8 @@ describe("real-world check", () => {
       };
       postRows.push(row);
       console.log(`${pc.id}: ${row.fairShift.outcome} (${got.length} shifts, ${r.parse.confidence}); spent US$${spent.toFixed(3)}`);
-      if (mode === "live") {
+      if (prior) row.baseline = prior.posts.find((x) => x.id === pc.id)?.baseline ?? null;
+      else if (mode === "live") {
         const llm = p.llm;
         pending.push(
           slot(async () => {
@@ -230,6 +239,7 @@ describe("real-world check", () => {
         codeCommit,
         dirtyTree,
         models: { agent: [...agentModels], baseline: baselineModel },
+        baselineFrom: baselineFrom?.split("/").at(-1),
         costUsd: Math.round(spent * 10000) / 10000,
         tavilyCredits: Math.round(tavily * 100) / 100,
         notUsed: { tw: TW_NOT_USED.length, ny: NY_NOT_USED.length, twRead: TW_NOT_USED.length + new Set(TW_COURT_CHECKS.map((c) => c.source.caseNo)).size, nyRead: NY_NOT_USED.length + new Set(NY_COURT_CHECKS.map((c) => c.source.caseNo)).size },

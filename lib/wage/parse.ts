@@ -36,7 +36,8 @@ export function shiftHours(start: string, end: string, breakMinutes: number): nu
   const [eh, em] = end.split(":").map(Number);
   let mins = eh * 60 + em - (sh * 60 + sm);
   if (mins <= 0) mins += 24 * 60; // overnight
-  return Math.max(0, Math.round(((mins - breakMinutes) / 60) * 100) / 100);
+  // Exact to the minute (rounded to 6 decimals only to drop float noise): 14 h 20 min must not become 14.33.
+  return Math.max(0, Math.round(((mins - breakMinutes) / 60) * 1e6) / 1e6);
 }
 
 // 18:00, 18點, 18點半, 18時 (a schedule written 18時-22時), 6pm

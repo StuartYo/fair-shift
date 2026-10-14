@@ -44,7 +44,8 @@ const PENDING = /陳報行政院核定|待行政院核定|pending approval|subje
 export function targetAmounts(key: RuleKey, quote: string, region?: NyRegion): number[] {
   const q = quote.normalize("NFKC");
   if (key === "tw.min_wage_hourly") {
-    return [...q.matchAll(/每小時最低工資[^。；]*?(?:為|至)\s*(\d[\d,]*)\s*元/g)].map((m) => Number(m[1].replace(/,/g, "")));
+    // 每小時基本工資: the name before the Minimum Wage Act took effect (2025-01-01).
+    return [...q.matchAll(/每小時(?:最低|基本)工資[^。；]*?(?:為|至)\s*(?:新[臺台]幣)?\s*(\d[\d,]*)\s*元/g)].map((m) => Number(m[1].replace(/,/g, "")));
   }
   if (key === "ny.min_wage_hourly" && region) {
     const out: number[] = [];
@@ -102,6 +103,40 @@ export function tipRowMatches(docs: DocStore, url: string, quote: string, region
     .some((ctx) => lastHeading(ctx, TIP_REGION_HEADS) === region && lastHeading(ctx, TIP_VARIANT_HEADS) === variant);
 }
 
+// History of the Minimum Wage in New York State: rows such as "$16.00 per hour on and
+// after January 1, 2024;" sit under region headings, so the region is read from the
+// nearest heading above the row (normalised: no spaces, lower case), and fast food
+// rates and the pre-2024 New York City employer-size lists are not accepted.
+const NY_HISTORY_REGION_HEADS: Record<NyRegion, string[]> = {
+  nyc: ["newyorkcity:"],
+  li_westchester: ["longisland,andwestchestercounties:"],
+  rest: ["remainderofstate(outside"],
+};
+const NY_HISTORY_SECTION_HEADS = { basic: ["basicminimumhourlyrates"], fastfood: ["minimumhourlyratesforfastfood"] };
+const NY_HISTORY_NYC_SIZE_HEADS = { all: ["allemployers:"], sized: ["largeemployersof11", "smallemployersof10"] };
+
+/** Amounts a history-page row states for the region, read from the headings above it. */
+export function nyHistoryAmounts(docs: DocStore, url: string, quote: string, region: NyRegion): number[] {
+  const m = quote.normalize("NFKC").trim().match(/^\$\s?(\d+\.\d{2}) per hour on and after [A-Z][a-z]+ \d{1,2}, \d{4}[;.]?$/);
+  if (!m) return [];
+  const ok = docs.contextsBefore(url, quote).some(
+    (ctx) =>
+      lastHeading(ctx, NY_HISTORY_SECTION_HEADS) === "basic" &&
+      lastHeading(ctx, NY_HISTORY_REGION_HEADS) === region &&
+      (region !== "nyc" || lastHeading(ctx, NY_HISTORY_NYC_SIZE_HEADS) === "all"),
+  );
+  return ok ? [Number(m[1])] : [];
+}
+
+/** The start date a rate quote names, if it names one: 自113年1月1日起 or "on and after January 1, 2024". */
+export function statedStartDates(quote: string): string[] {
+  const q = quote.normalize("NFKC");
+  const out: string[] = [];
+  for (const m of q.matchAll(/自\s*(\d{2,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(?:起|實施|生效)/g)) out.push(...statedDates(m[0]));
+  for (const m of q.matchAll(/on and after ([A-Z][a-z]+ \d{1,2}, \d{4})/g)) out.push(...statedDates(m[1]));
+  return out;
+}
+
 function checkPhrases(key: RuleKey, quote: string): boolean {
   const p = PHRASES[key];
   if (!p) return true;
@@ -137,7 +172,11 @@ export function verifyRule(
 
   let exact = p.value;
   if (spec.kind === "amount") {
-    const idx = quotes.findIndex((q) => targetAmounts(spec.key, q, region).some((a) => approxEqual(a, p.value)));
+    const amounts = (q: string, i: number) => [
+      ...targetAmounts(spec.key, q, region),
+      ...(spec.key === "ny.min_wage_hourly" && region ? nyHistoryAmounts(docs, urls[i], q, region) : []),
+    ];
+    const idx = quotes.findIndex((q, i) => amounts(q, i).some((a) => approxEqual(a, p.value)));
     if (idx < 0) return { ok: false, reason: `the quote does not state ${p.value} as the ${spec.label}` };
     if (spec.key === "ny.tip_credit" && !tipRowMatches(docs, urls[idx], quotes[idx], region!, variant!))
       return { ok: false, reason: `the quoted row is not listed under ${region} for ${variant === "food_service" ? "food service workers" : "service employees"}` };
@@ -175,6 +214,11 @@ export function verifyRule(
         ok: false,
         reason: `effective_from must be a date written in the quote (YYYY-MM-DD)${dates.size ? `; the quote states ${[...dates].sort().join(", ")}` : "; this quote states no date"}`,
       };
+    // A minimum wage quote that says when the rate starts (自...起, "on and after") must be recorded from that date,
+    // not from the date it was announced, which the same line may also state.
+    const starts = (spec.key === "tw.min_wage_hourly" || spec.key === "ny.min_wage_hourly") ? quotes.flatMap(statedStartDates) : [];
+    if (starts.length && !starts.includes(p.effective_from))
+      return { ok: false, reason: `effective_from must be the date the rate starts: ${[...new Set(starts)].join(", ")}` };
     effectiveFrom = p.effective_from;
     if (p.effective_to && dates.has(p.effective_to)) effectiveTo = p.effective_to;
   }

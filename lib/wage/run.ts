@@ -492,6 +492,16 @@ export async function runFairShift(input: CheckInput, deps: FairShiftDeps): Prom
   const recompute = (s: Shift[], p: Payslip = paySlipForCompute) =>
     compute({ jurisdiction: j, nyRegion: input.nyRegion, nyJob, shifts: s, payslip: p, rules: store.rules, workweekStart: input.workweekStart });
   const computation = recompute(shifts);
+  // No minimum wage for the shift dates (for example a year no retrieved page covers): the amount was
+  // computed from the stated rate alone, so say so next to the number instead of only in the problem list.
+  if (computation.problems.some((p) => p.kind === "missing_rule" && p.ruleKeys.some((k) => k === "tw.min_wage_hourly" || k === "ny.min_wage_hourly"))) {
+    const years = [...new Set(shifts.map((s) => s.date.slice(0, 4)))].sort().join(", ");
+    extraPremises.push({
+      id: "min_wage_missing",
+      en: `The minimum wage for ${years} was not found in the official pages retrieved this time, so the amount uses your stated rate without checking it against the minimum wage. If your rate was below the minimum, you are owed more; check the rate for those dates with ${j === "TW" ? "the 1955 hotline" : "NYS DOL"}.`,
+      zh: `這次取得的官方網頁裡找不到 ${years} 年的最低工資，所以直接用你填的時薪計算，沒有和最低工資比對。如果你的時薪低於當時的最低工資，應領的會更多；請打 1955 確認那段期間的最低工資。`,
+    });
+  }
   session.emit({
     kind: "info",
     name: "compute",
